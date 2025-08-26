@@ -36,10 +36,10 @@ st.markdown(
 # ----------------------
 # Team Selector
 # ----------------------
-teams = df['Team'].dropna().unique()
+teams = df['Teams'].dropna().unique()
 team_choice = st.selectbox("Select a Team:", sorted(teams))
 
-team_data = df[df['Team'] == team_choice]
+team_data = df[df['Teams'] == team_choice]
 
 # ----------------------
 # Summary Stats
