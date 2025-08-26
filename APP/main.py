@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 # Load data (adjust path & file type)
 @st.cache_data
 def load_data():
-    return pd.read_excel("Data/All_Stats.xlsx")
+    return pd.read_excel("Data/All_stats.xlsx")
 
 df = load_data()
 
