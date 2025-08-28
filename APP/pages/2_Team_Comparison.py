@@ -9,29 +9,8 @@ import plotly.graph_objects as go
 # ===============================
 @st.cache_data
 def load_data():
-    data_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Data", "All_stats.csv")
-    # Try common encodings to avoid UnicodeDecodeError
-    for enc in ("ISO-8859-1", "latin1", "utf-8-sig"):
-        try:
-            df = pd.read_csv(data_path, encoding=enc)
-            break
-        except UnicodeDecodeError:
-            continue
-    else:
-        # Last resort: replace bad bytes so the app never crashes
-        df = pd.read_csv(data_path, encoding="latin1", on_bad_lines="skip", engine="python")
-    # Standardize column names (strip)
-    df.columns = [c.strip() for c in df.columns]
-    # Also standardize team column name if needed
-    if "Teams" in df.columns:
-        team_col = "Teams"
-    elif "Team" in df.columns:
-        team_col = "Team"
-    else:
-        raise ValueError("Could not find a 'Teams' or 'Team' column in All_stats.csv")
-    return df, "Teams" if "Teams" in df.columns else "Team"
+    return pd.read_csv("Data/All_stats.csv", encoding="latin1")
 
-df, TEAM_COL = load_data()
 
 st.title("Team Comparison – Radar by Category Rank")
 
@@ -242,3 +221,4 @@ st.caption(
     "Notes: Lower rank is better. Categories aggregate the mean of their listed rank columns. "
     "Excluded from this view: SOS, Top7, and Clutch-related fields."
 )
+
