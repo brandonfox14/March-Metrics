@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 @st.cache_data
 def load_data():
     # ✅ Make sure this CSV is in the APP/ folder or adjust path
-    return pd.read_csv("data/team_stats.csv")  
+    return pd.read_csv("Data/All_stats.csv")  
 
 df = load_data()
 
@@ -92,3 +92,4 @@ if team1 and team2:
         team2: list(scores2.values())
     })
     st.dataframe(comparison_df, use_container_width=True)
+
