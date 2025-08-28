@@ -29,11 +29,12 @@ if team1 == team2:
     st.stop()
 
 # ----------------------------
-# Filter out unwanted columns (clutch, top7, sos)
+# Filter out unwanted columns 
+# (clutch, top7, sos, rank)
 # ----------------------------
 cols_to_keep = [
     c for c in df.columns 
-    if not any(bad in str(c).lower() for bad in ["clutch", "top7", "sos"])
+    if not any(bad in str(c).lower() for bad in ["clutch", "top7", "sos", "rank"])
 ]
 df = df[cols_to_keep]
 
