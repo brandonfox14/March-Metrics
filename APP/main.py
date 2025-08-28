@@ -12,7 +12,7 @@ df = load_data()
 col1, col2 = st.columns([3,1])  # ratio keeps title bigger and logo smaller
 
 with col1:
-    st.title("🏀 March Metrics")
+    st.title("March Metrics")
 
 with col2:
     st.image("Assets/FullLogo.png", use_container_width=True)
@@ -20,7 +20,7 @@ with col2:
 # --- HIGHLIGHTED TEAM ---
 best_team = df.loc[df["Average Ranking"].idxmin()]
 
-st.subheader("🔥 Highlighted Team")
+st.subheader("Highlighted Team")
 st.markdown(
     f"""
     <div style="padding:15px; border-radius:12px; background-color:#f5f5f5; 
