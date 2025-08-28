@@ -1,79 +1,85 @@
-import os
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
 
-# ----------------------
-# Data Loader
-# ----------------------
+# Load data
 @st.cache_data
 def load_data():
-    # Build correct path (case-sensitive on Streamlit Cloud)
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    data_path = os.path.join(base_dir, "..", "Data", "All_stats.xlsx")
-    return pd.read_excel(data_path)
+    return pd.read_csv("Data/All_stats.csv", encoding="latin1")
 
 df = load_data()
 
-# ----------------------
-# Main Page Layout
-# ----------------------
-st.set_page_config(
-    page_title="March Metrics",
-    page_icon="🏀",
-    layout="wide"
-)
+# --- HEADER WITH LOGO + TITLE ---
+col1, col2 = st.columns([3,1])  # ratio keeps title bigger and logo smaller
 
-# Title & intro
-st.title("🏀 March Metrics: College Basketball Analytics")
+with col1:
+    st.title("🏀 March Metrics")
+
+with col2:
+    st.image("Assets/FullLogo.png", use_container_width=True)
+
+# --- HIGHLIGHTED TEAM ---
+best_team = df.loc[df["Average Ranking"].idxmin()]
+
+st.subheader("🔥 Highlighted Team")
 st.markdown(
-    """
-    Welcome to **March Metrics** — your all-in-one dashboard for college basketball stats & insights.  
-    Use the sidebar to navigate between pages (Teams, Players, Games, Predictions).  
-    """
+    f"""
+    <div style="padding:15px; border-radius:12px; background-color:#f5f5f5; 
+                box-shadow:0px 4px 10px rgba(0,0,0,0.15); text-align:center;">
+        <h2 style="margin:0;">{best_team['Teams']}</h2>
+        <p style="margin:5px 0;">Wins: {best_team['Wins']} | Losses: {best_team['Losses']}</p>
+        <p style="margin:5px 0; font-weight:bold; color:#2E86C1;">
+            Avg Ranking: {best_team['Average Ranking']}
+        </p>
+        <p style="margin:5px 0; font-weight:bold; color:#117A65;">
+            Avg Scoring Margin: {best_team['SM']}
+        </p>
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
 
-# ----------------------
-# Team Selector
-# ----------------------
-teams = df['Teams'].dropna().unique()
-team_choice = st.selectbox("Select a Team:", sorted(teams))
+# Confidentiality Note
+st.info("⚠️ This is not the full dataset. This example app is built for portfolio purposes only to maintain business confidentiality.")
 
-team_data = df[df['Teams'] == team_choice]
+st.divider()
 
-# ----------------------
-# Summary Stats
-# ----------------------
-st.subheader(f"📊 Season Summary: {team_choice}")
+# --- NAVIGATION CARDS ---
+st.subheader("📊 Explore the Data")
 
-if not team_data.empty:
-    wins = team_data['Wins'].iloc[0] if 'Wins' in team_data.columns else "N/A"
-    losses = team_data['Losses'].iloc[0] if 'Losses' in team_data.columns else "N/A"
-    avg_points = team_data['Points'].mean() if 'Points' in team_data.columns else 0
-    avg_allowed = team_data['Opponent Points'].mean() if 'Opponent Points' in team_data.columns else 0
+cols = st.columns(3)
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Wins", wins)
-    col2.metric("Losses", losses)
-    col3.metric("Avg Points Scored", f"{avg_points:.1f}")
-    col4.metric("Avg Points Allowed", f"{avg_allowed:.1f}")
+with cols[0]:
+    st.markdown(
+        """
+        <div style="padding:15px; border-radius:12px; background-color:#E8F8F5; 
+                    box-shadow:0px 4px 8px rgba(0,0,0,0.1); text-align:center;">
+            <h3>Team Breakdown</h3>
+            <p>Dive into detailed team stats and player impact.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-# ----------------------
-# Chart: Scoring Trends
-# ----------------------
-if 'Game Number' in team_data.columns and 'Points' in team_data.columns:
-    st.subheader("📈 Scoring Trend")
-    fig, ax = plt.subplots()
-    ax.plot(team_data['Game Number'], team_data['Points'], marker="o", label="Points Scored")
-    if 'Opponent Points' in team_data.columns:
-        ax.plot(team_data['Game Number'], team_data['Opponent Points'], marker="x", label="Points Allowed")
-    ax.set_xlabel("Game #")
-    ax.set_ylabel("Points")
-    ax.legend()
-    st.pyplot(fig)
+with cols[1]:
+    st.markdown(
+        """
+        <div style="padding:15px; border-radius:12px; background-color:#FDEDEC; 
+                    box-shadow:0px 4px 8px rgba(0,0,0,0.1); text-align:center;">
+            <h3>Conference Projections</h3>
+            <p>See how conferences stack up against each other.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-# ----------------------
-# Footer
-# ----------------------
-st.markdown("---")
-st.caption("Built with ❤️ using Streamlit | Data: College Basketball Stats")
+with cols[2]:
+    st.markdown(
+        """
+        <div style="padding:15px; border-radius:12px; background-color:#FEF9E7; 
+                    box-shadow:0px 4px 8px rgba(0,0,0,0.1); text-align:center;">
+            <h3>Clutch Performance</h3>
+            <p>Who delivers when the game is on the line?</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
