@@ -1,83 +1,80 @@
 import streamlit as st
 import pandas as pd
+import plotly.graph_objects as go
 
 # --- Load Data ---
 @st.cache_data
 def load_data():
-    return pd.read_csv("Data/All_stats.csv", encoding="latin1")
+    df = pd.read_csv("team_stats.csv")  # replace with your file
+    return df
 
 df = load_data()
 
-# --- TEAM SELECTION ---
-st.header("Team Comparison")
+st.title("🏀 Team Comparison Radar")
 
+# --- Team Selection ---
 teams = sorted(df["Teams"].unique())
-col1, col2 = st.columns(2)
-with col1:
-    team1 = st.selectbox("Select Team 1", teams, index=0)
-with col2:
-    team2 = st.selectbox("Select Team 2", teams, index=1)
+team1 = st.selectbox("Select Team 1", teams, index=0)
+team2 = st.selectbox("Select Team 2", teams, index=1)
 
-team1_data = df[df["Teams"] == team1].iloc[0]
-team2_data = df[df["Teams"] == team2].iloc[0]
-
-# --- Define Stats for Comparison ---
-offense_cols = {
-    "Points": "Points Per Game",
-    "FG_PERC": "Field Goal Percentage",
-    "FGM/G": "Field Goals Made per Game",
-    "FG3_PERC": "3 Point Field Goal Percentage",
-    "FG3M/G": "3 Point Field Goals Made per Game",
-    "FT_PERC": "Free Throw Percentage",
-    "FTM/G": "Free Throws Made per Game",
-    "% of Points from 3": "% of Points from 3",
-    "% of shots taken from 3": "% of Shots Taken from 3"
+# --- Define Stat Categories ---
+categories = {
+    "Offense": ["Points", "FG_PERC", "FGM/G", "FG3_PERC", "FG3M/G", "FT_PERC", "FTM/G"],
+    "Defense": ["OPP_PPG", "OPP_FG_PERC", "OPP_FGM/G", "OPP_FG3_PERC", "OPP_FG3M/G", "OPP_% of Points from 3", "OPP_% of shots taken from 3", "OPP_OReb"],
+    "Rebounding": ["OReb", "DReb"],
+    "Ball Movement": ["AST", "TO", "AST/FGM", "STL"],
+    "Discipline": ["PF", "Foul_Diff"],   # adjust if diff column names
+    "Tempo": ["Pace", "Extra_Scoring_Chances"]  # adjust if diff column names
 }
 
-defense_cols = {
-    "OPP_PPG": "Opponent Points Per Game",
-    "OPP_FG_PERC": "Opponent Field Goal Percentage",
-    "OPP_FGM/G": "Opponent FGM per Game",
-    "OPP_FG3_PERC": "Opponent 3PT Percentage",
-    "OPP_FG3M/G": "Opponent 3PTM per Game",
-    "OPP_% of Points from 3": "Opponent % of Points from 3",
-    "OPP_% of shots taken from 3": "Opponent % of Shots Taken from 3",
-    "OPP_OReb": "Opponent Offensive Rebounds"
-}
+# --- Function to Calculate Category Averages ---
+def get_category_scores(team, df):
+    row = df[df["Teams"] == team].iloc[0]
+    scores = {}
+    for cat, cols in categories.items():
+        valid_cols = [c for c in cols if c in df.columns]
+        if valid_cols:
+            scores[cat] = row[valid_cols].mean()
+        else:
+            scores[cat] = None
+    return scores
 
-# --- Helper Function for Formatting ---
-def format_value(col, val):
-    if "PERC" in col or "%" in col:
-        return f"{val:.1%}" if val <= 1 else f"{val:.1f}%"
+team1_scores = get_category_scores(team1, df)
+team2_scores = get_category_scores(team2, df)
+
+# League average (baseline)
+league_scores = {}
+for cat, cols in categories.items():
+    valid_cols = [c for c in cols if c in df.columns]
+    if valid_cols:
+        league_scores[cat] = df[valid_cols].mean(axis=1).mean()
     else:
-        return f"{val:.1f}"
+        league_scores[cat] = None
 
-# =====================
-# 📊 OFFENSE COMPARISON
-# =====================
-st.subheader("Offense Comparison")
+# --- Radar Chart ---
+fig = go.Figure()
 
-for col, label in offense_cols.items():
-    colA, colB, colC = st.columns([2,1,1])
-    with colA:
-        st.markdown(f"**{label}**")
-    with colB:
-        st.write(format_value(col, team1_data[col]))
-    with colC:
-        st.write(format_value(col, team2_data[col]))
+def add_trace(scores, name, color):
+    fig.add_trace(go.Scatterpolar(
+        r=list(scores.values()),
+        theta=list(scores.keys()),
+        fill='toself',
+        name=name,
+        line=dict(color=color)
+    ))
 
-# =====================
-# 🛡️ DEFENSE COMPARISON
-# =====================
-st.subheader("Defense Comparison")
+add_trace(team1_scores, team1, "blue")
+add_trace(team2_scores, team2, "red")
+add_trace(league_scores, "League Avg", "gray")
 
-for col, label in defense_cols.items():
-    colA, colB, colC = st.columns([2,1,1])
-    with colA:
-        st.markdown(f"**{label}**")
-    with colB:
-        st.write(format_value(col, team1_data[col]))
-    with colC:
-        st.write(format_value(col, team2_data[col]))
+fig.update_layout(
+    polar=dict(
+        radialaxis=dict(
+            visible=True,
+            autorange="reversed"  # so rank 1 is outside
+        )
+    ),
+    showlegend=True
+)
 
-
+st.plotly_chart(fig, use_container_width=True)
