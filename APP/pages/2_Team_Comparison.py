@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 
 # ----------------------------
-# Load data (simple, as requested)
+# Load data
 # ----------------------------
 @st.cache_data
 def load_data():
@@ -29,6 +29,15 @@ if team1 == team2:
     st.stop()
 
 # ----------------------------
+# Filter out unwanted columns (clutch, top7, sos)
+# ----------------------------
+cols_to_keep = [
+    c for c in df.columns 
+    if not any(bad in str(c).lower() for bad in ["clutch", "top7", "sos"])
+]
+df = df[cols_to_keep]
+
+# ----------------------------
 # Pull rows for selected teams
 # ----------------------------
 row1 = df[df[TEAM_COL] == team1]
@@ -42,51 +51,39 @@ s1 = row1.iloc[0]
 s2 = row2.iloc[0]
 
 # ----------------------------
-# Build comparison DataFrame (index = statistic, columns = team1, team2)
+# Build comparison DataFrame
 # ----------------------------
 comp = pd.DataFrame({team1: s1, team2: s2})
-
-# Keep original column order
-comp = comp.loc[df.columns]  # ensures consistent ordering
+comp = comp.loc[df.columns]  # preserve order
 
 # ----------------------------
-# Helper: format numeric values (percent heuristics)
+# Format helper
 # ----------------------------
 def format_pair(col, v):
-    # try numeric
     try:
         f = float(v)
-        # treat PERC-ish columns or values <=1 as percent
-        if ("PERC" in str(col).upper()) or ("% of" in str(col)) or (f <= 1 and "PERC" not in str(col).upper() and "%" not in str(col)):
-            # if value looks like 0.452 treat as 45.2%
-            if f <= 1:
-                return f"{f*100:.1f}%"
-            else:
-                return f"{f:.1f}%"
+        if ("PERC" in str(col).upper()) or ("% of" in str(col)) or (f <= 1 and "PERC" not in str(col).upper()):
+            return f"{f*100:.1f}%" if f <= 1 else f"{f:.1f}%"
         else:
-            # general numeric formatting
             return f"{f:.1f}"
     except Exception:
-        # non-numeric -> return as-is
         return v
 
-# Create a display copy with formatted values to show to user
 display = comp.copy()
 for col in display.index:
     display.at[col, team1] = format_pair(col, display.at[col, team1])
     display.at[col, team2] = format_pair(col, display.at[col, team2])
 
-# Reset index for nicer table
 display_df = display.reset_index().rename(columns={"index": "Statistic"})
 
 # ----------------------------
-# Render the full comparison table
+# Render
 # ----------------------------
 st.subheader("All stats (side-by-side)")
 st.dataframe(display_df, use_container_width=True)
 
 # ----------------------------
-# Quick snapshot (selected key stats)
+# Quick snapshot (key stats only)
 # ----------------------------
 key_stats = ["Points", "FG_PERC", "FT_PERC", "OReb", "DReb", "AST", "TO", "SM", "Off_eff", "OPP_PPG"]
 present_keys = [k for k in key_stats if k in df.columns]
@@ -102,5 +99,3 @@ if present_keys:
         st.markdown(f"#### {team2}")
         for k in present_keys:
             st.write(f"**{k}:** {format_pair(k, s2.get(k, ''))}")
-
-
