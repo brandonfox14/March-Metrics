@@ -137,18 +137,20 @@ for group_name, stats in stat_groups.items():
             st.markdown(f"<div style='text-align:left; background-color:{color_b}; width:{int(norm_b*100)}%; padding:5px; border-radius:5px;'>{val_b}</div>", unsafe_allow_html=True)
 
 # -----------------------
-# Radar Chart (Visual inverted: best on outside)
+# Radar Chart (Simplified, inverted axis)
 # -----------------------
 st.subheader("Team Radar: Average Rankings")
 radar_categories = ["Overall","Offense","Defense","Rebounds/AST/TO/STL","Extras"]
 
 def avg_rank(team_data, stats_list):
-    ranks = [team_data[rank_overrides[s]] for s in stats_list if not pd.isna(team_data[rank_overrides[s]])]
+    # Just take the actual rank values directly
+    ranks = [team_data[s] for s in stats_list if not pd.isna(team_data[s])]
     return np.mean(ranks) if ranks else np.nan
 
-# Compute ranks (actual numbers)
-overall_a = avg_rank(team_a_data, ["Average Ranking"])
-overall_b = avg_rank(team_b_data, ["Average Ranking"])
+# Compute average rankings for each category
+overall_a = team_a_data["Average Ranking"]
+overall_b = team_b_data["Average Ranking"]
+
 offense_a = avg_rank(team_a_data, stat_groups["Offense"])
 defense_a = avg_rank(team_a_data, stat_groups["Defense"])
 reb_a = avg_rank(team_a_data, stat_groups["Rebounds/AST/TO/STL"])
@@ -159,7 +161,7 @@ defense_b = avg_rank(team_b_data, stat_groups["Defense"])
 reb_b = avg_rank(team_b_data, stat_groups["Rebounds/AST/TO/STL"])
 extras_b = avg_rank(team_b_data, stat_groups["Extras"])
 
-# Invert the radial axis visually (keep numbers correct)
+# Build radar chart
 fig = go.Figure()
 fig.add_trace(go.Scatterpolar(
     r=[overall_a, offense_a, defense_a, reb_a, extras_a],
@@ -174,11 +176,12 @@ fig.add_trace(go.Scatterpolar(
     name=team_b
 ))
 
+# Invert radial axis: best (1) on outside, worst (365) on inside
 fig.update_layout(
     polar=dict(
         radialaxis=dict(
             visible=True,
-            range=[365, 1],  # invert axis: best on outside, worst on inside
+            range=[365, 1],  # invert axis
             tickvals=[50,100,150,200,250,300,350]
         )
     ),
