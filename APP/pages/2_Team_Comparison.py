@@ -1,102 +1,181 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
 
-# ----------------------------
-# Load data
-# ----------------------------
+# -----------------------
+# Load Data
+# -----------------------
 @st.cache_data
 def load_data():
     return pd.read_csv("Data/All_stats.csv", encoding="latin1")
 
 df = load_data()
 
-# Determine team column name
-TEAM_COL = "Teams" if "Teams" in df.columns else ("Team" if "Team" in df.columns else df.columns[0])
+# -----------------------
+# Define stat groups with rank columns
+# -----------------------
+stat_groups = {
+    "Offense": {
+        "Points": "Points_RANK",
+        "FG_PERC": "FG_PERC_Rank",
+        "FGM/G": "FGM/G_Rank",
+        "FG3_PERC": "FG3_PERC_Rank",
+        "FG3M/G": "FG3M/G_Rank",
+        "% of Points from 3": "% of Points from 3_RANK",
+        "% of shots taken from 3": "% of shots taken from 3_RANK",
+        "FT_PERC": "FT_PERC_Rank",
+        "FTM/G": "FTM/G_Rank"
+    },
+    "Defense": {
+        "OPP_PPG": "OPP_PPG_RANK",
+        "OPP_FG_PERC": "OPP_FG_PERC_Rank",
+        "OPP_FGM/G": "OPP_FGM/G_Rank",
+        "OPP_FG3_PERC": "OPP_FG3_PERC_Rank",
+        "OPP_FG3M/G": "OPP_FG3M/G_Rank",
+        "OPP_% of Points from 3": "OPP_% of Points from 3 rank",
+        "OPP_% of shots taken from 3": "OPP_% of shots taken from 3 Rank",
+        "OPP_OReb": "OPP_OReb_RANK"
+    },
+    "Rebounds/AST/TO/STL": {
+        "OReb": "OReb Rank",
+        "OReb chances": "OReb chances Rank",
+        "DReb": "DReb Rank",
+        "Rebounds": "Rebounds Rank",
+        "Rebound Rate": "Rebound Rate Rank",
+        "AST": "AST Rank",
+        "AST/FGM": "AST/FGM Rank",
+        "TO": "TO Rank",
+        "STL": "STL Rank"
+    },
+    "Extras": {
+        "Extra Scoring Chances": "Extra Scoring Chances Rank",
+        "PTS_OFF_TURN": "PTS_OFF_TURN_RANK",
+        "FST_BREAK": "FST_BREAK_RANK",
+        "PTS_PAINT": "PTS_PAINT_RANK",
+        "PF": "PF_Rank",
+        "Foul Differential": "Foul Differential Rank"
+    }
+}
 
-# ----------------------------
-# Page header + selectors
-# ----------------------------
-st.title("Team Comparison — Full Stats")
+# -----------------------
+# Team Selection
+# -----------------------
+teams_sorted = sorted(df["Teams"].dropna().unique().tolist())
 
-col_a, col_b = st.columns(2)
-with col_a:
-    team1 = st.selectbox("Team 1", sorted(df[TEAM_COL].unique()), key="team1")
-with col_b:
-    team2 = st.selectbox("Team 2", sorted(df[TEAM_COL].unique()), index=1, key="team2")
+col1, col2 = st.columns(2)
+with col1:
+    team_a = st.selectbox("Select Left Team", teams_sorted, index=0)
+with col2:
+    team_b = st.selectbox("Select Right Team", teams_sorted, index=1)
 
-if team1 == team2:
-    st.warning("Please select two different teams to compare.")
-    st.stop()
+team_a_data = df[df["Teams"] == team_a].iloc[0]
+team_b_data = df[df["Teams"] == team_b].iloc[0]
 
-# ----------------------------
-# Filter out unwanted columns 
-# (clutch, top7, sos, rank)
-# ----------------------------
-cols_to_keep = [
-    c for c in df.columns 
-    if not any(bad in str(c).lower() for bad in ["clutch", "top7", "sos", "rank"])
-]
-df = df[cols_to_keep]
+# -----------------------
+# Helper Functions
+# -----------------------
+def color_by_rank(rank):
+    if pd.isna(rank):
+        return "lightgrey"
+    rank = int(rank)
+    if rank > 200:
+        return f"rgba(139,0,0,0.8)"  # dark red
+    elif 151 <= rank <= 200:
+        return f"rgba(169,169,169,0.7)"  # grey
+    else:
+        # top 150 gradient green
+        green_val = int(50 + (150 - rank) * 1.4)
+        return f"rgba(0,{green_val},0,0.8)"
 
-# ----------------------------
-# Pull rows for selected teams
-# ----------------------------
-row1 = df[df[TEAM_COL] == team1]
-row2 = df[df[TEAM_COL] == team2]
+def normalize_stat(val, stat_col):
+    min_val = df[stat_col].min()
+    max_val = df[stat_col].max()
+    if pd.isna(val) or min_val == max_val:
+        return 0.5
+    return (val - min_val) / (max_val - min_val)
 
-if row1.empty or row2.empty:
-    st.error("One of the selected teams was not found in the data.")
-    st.stop()
+# -----------------------
+# Side-by-Side Bars
+# -----------------------
+st.subheader("Team Comparison: Stats")
 
-s1 = row1.iloc[0]
-s2 = row2.iloc[0]
+for group_name, cols in stat_groups.items():
+    st.markdown(f"### {group_name}")
+    for stat, rank_col in cols.items():
+        val_a = team_a_data.get(stat, np.nan)
+        val_b = team_b_data.get(stat, np.nan)
+        rank_a = team_a_data.get(rank_col, np.nan)
+        rank_b = team_b_data.get(rank_col, np.nan)
+        
+        # normalize for bar length
+        norm_a = normalize_stat(val_a, stat)
+        norm_b = normalize_stat(val_b, stat)
+        
+        # colors
+        color_a = color_by_rank(rank_a)
+        color_b = color_by_rank(rank_b)
+        
+        col_left, col_center, col_right = st.columns([4,2,4])
+        with col_left:
+            st.markdown(f"<div style='text-align:right; background-color:{color_a}; width:{int(norm_a*100)}%; padding:5px; border-radius:5px;'>{val_a}</div>", unsafe_allow_html=True)
+        with col_center:
+            st.markdown(f"**{stat}**", unsafe_allow_html=True)
+        with col_right:
+            st.markdown(f"<div style='text-align:left; background-color:{color_b}; width:{int(norm_b*100)}%; padding:5px; border-radius:5px;'>{val_b}</div>", unsafe_allow_html=True)
 
-# ----------------------------
-# Build comparison DataFrame
-# ----------------------------
-comp = pd.DataFrame({team1: s1, team2: s2})
-comp = comp.loc[df.columns]  # preserve order
+# -----------------------
+# Radar Chart: Average Rankings
+# -----------------------
+st.subheader("Team Radar: Average Rankings")
 
-# ----------------------------
-# Format helper
-# ----------------------------
-def format_pair(col, v):
-    try:
-        f = float(v)
-        if ("PERC" in str(col).upper()) or ("% of" in str(col)) or (f <= 1 and "PERC" not in str(col).upper()):
-            return f"{f*100:.1f}%" if f <= 1 else f"{f:.1f}%"
-        else:
-            return f"{f:.1f}"
-    except Exception:
-        return v
+radar_categories = ["Overall", "Offense", "Defense", "Rebounds/AST/TO/STL", "Extras"]
 
-display = comp.copy()
-for col in display.index:
-    display.at[col, team1] = format_pair(col, display.at[col, team1])
-    display.at[col, team2] = format_pair(col, display.at[col, team2])
+def avg_rank(team_data, cols_group):
+    ranks = []
+    for stat, rank_col in cols_group.items():
+        val = team_data.get(rank_col, np.nan)
+        if not pd.isna(val):
+            ranks.append(float(val))
+    return np.mean(ranks) if ranks else np.nan
 
-display_df = display.reset_index().rename(columns={"index": "Statistic"})
+# compute values
+overall_a = team_a_data["Average Ranking"]
+overall_b = team_b_data["Average Ranking"]
 
-# ----------------------------
-# Render
-# ----------------------------
-st.subheader("All stats (side-by-side)")
-st.dataframe(display_df, use_container_width=True)
+offense_a = avg_rank(team_a_data, stat_groups["Offense"])
+defense_a = avg_rank(team_a_data, stat_groups["Defense"])
+reb_a = avg_rank(team_a_data, stat_groups["Rebounds/AST/TO/STL"])
+extras_a = avg_rank(team_a_data, stat_groups["Extras"])
 
-# ----------------------------
-# Quick snapshot (key stats only)
-# ----------------------------
-key_stats = ["Points", "FG_PERC", "FT_PERC", "OReb", "DReb", "AST", "TO", "SM", "Off_eff", "OPP_PPG"]
-present_keys = [k for k in key_stats if k in df.columns]
+offense_b = avg_rank(team_b_data, stat_groups["Offense"])
+defense_b = avg_rank(team_b_data, stat_groups["Defense"])
+reb_b = avg_rank(team_b_data, stat_groups["Rebounds/AST/TO/STL"])
+extras_b = avg_rank(team_b_data, stat_groups["Extras"])
 
-if present_keys:
-    st.subheader("Quick snapshot")
-    left, right = st.columns(2)
-    with left:
-        st.markdown(f"#### {team1}")
-        for k in present_keys:
-            st.write(f"**{k}:** {format_pair(k, s1.get(k, ''))}")
-    with right:
-        st.markdown(f"#### {team2}")
-        for k in present_keys:
-            st.write(f"**{k}:** {format_pair(k, s2.get(k, ''))}")
+fig = go.Figure()
+
+# Team A
+fig.add_trace(go.Scatterpolar(
+    r=[overall_a, offense_a, defense_a, reb_a, extras_a],
+    theta=radar_categories,
+    fill='toself',
+    name=team_a
+))
+
+# Team B
+fig.add_trace(go.Scatterpolar(
+    r=[overall_b, offense_b, defense_b, reb_b, extras_b],
+    theta=radar_categories,
+    fill='toself',
+    name=team_b
+))
+
+fig.update_layout(
+    polar=dict(
+        radialaxis=dict(visible=True, range=[1, 365], tickvals=[50,100,150,200,250,300,350])
+    ),
+    showlegend=True
+)
+
+st.plotly_chart(fig, use_container_width=True)
