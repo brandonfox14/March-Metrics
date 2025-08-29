@@ -137,34 +137,29 @@ for group_name, stats in stat_groups.items():
             st.markdown(f"<div style='text-align:left; background-color:{color_b}; width:{int(norm_b*100)}%; padding:5px; border-radius:5px;'>{val_b}</div>", unsafe_allow_html=True)
 
 # -----------------------
-# Radar Chart (Inverted: best on outside)
+# Radar Chart (Visual inverted: best on outside)
 # -----------------------
 st.subheader("Team Radar: Average Rankings")
 radar_categories = ["Overall","Offense","Defense","Rebounds/AST/TO/STL","Extras"]
-
-def invert_rank(rank):
-    """Invert rank so 1 becomes max radius, 365 becomes min."""
-    if pd.isna(rank):
-        return np.nan
-    return 366 - rank  # 366 to keep 1 -> 365 scale
 
 def avg_rank(team_data, stats_list):
     ranks = [team_data[rank_overrides[s]] for s in stats_list if not pd.isna(team_data[rank_overrides[s]])]
     return np.mean(ranks) if ranks else np.nan
 
-# Compute inverted radar values
-overall_a = invert_rank(team_a_data["Average Ranking"])
-overall_b = invert_rank(team_b_data["Average Ranking"])
-offense_a = invert_rank(avg_rank(team_a_data, stat_groups["Offense"]))
-defense_a = invert_rank(avg_rank(team_a_data, stat_groups["Defense"]))
-reb_a = invert_rank(avg_rank(team_a_data, stat_groups["Rebounds/AST/TO/STL"]))
-extras_a = invert_rank(avg_rank(team_a_data, stat_groups["Extras"]))
+# Compute ranks (actual numbers)
+overall_a = avg_rank(team_a_data, ["Average Ranking"])
+overall_b = avg_rank(team_b_data, ["Average Ranking"])
+offense_a = avg_rank(team_a_data, stat_groups["Offense"])
+defense_a = avg_rank(team_a_data, stat_groups["Defense"])
+reb_a = avg_rank(team_a_data, stat_groups["Rebounds/AST/TO/STL"])
+extras_a = avg_rank(team_a_data, stat_groups["Extras"])
 
-offense_b = invert_rank(avg_rank(team_b_data, stat_groups["Offense"]))
-defense_b = invert_rank(avg_rank(team_b_data, stat_groups["Defense"]))
-reb_b = invert_rank(avg_rank(team_b_data, stat_groups["Rebounds/AST/TO/STL"]))
-extras_b = invert_rank(avg_rank(team_b_data, stat_groups["Extras"]))
+offense_b = avg_rank(team_b_data, stat_groups["Offense"])
+defense_b = avg_rank(team_b_data, stat_groups["Defense"])
+reb_b = avg_rank(team_b_data, stat_groups["Rebounds/AST/TO/STL"])
+extras_b = avg_rank(team_b_data, stat_groups["Extras"])
 
+# Invert the radial axis visually (keep numbers correct)
 fig = go.Figure()
 fig.add_trace(go.Scatterpolar(
     r=[overall_a, offense_a, defense_a, reb_a, extras_a],
@@ -181,7 +176,11 @@ fig.add_trace(go.Scatterpolar(
 
 fig.update_layout(
     polar=dict(
-        radialaxis=dict(visible=True, range=[1,365], tickvals=[50,100,150,200,250,300,350])
+        radialaxis=dict(
+            visible=True,
+            range=[365, 1],  # invert axis: best on outside, worst on inside
+            tickvals=[50,100,150,200,250,300,350]
+        )
     ),
     showlegend=True
 )
