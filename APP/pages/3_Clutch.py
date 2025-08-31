@@ -22,6 +22,25 @@ team_name = st.selectbox("Select Team", teams_sorted, index=teams_sorted.index(d
 team_data = df[df["Teams"] == team_name].iloc[0]
 
 # -----------------------
+# Common name mapping
+# -----------------------
+stat_name_map = {
+    "CLUTCH_FGPERC": "Clutch Field Goal Percentage",
+    "CLUTCH_3FGPERC": "Clutch 3 Point Field Goal Percentage",
+    "CLUTCH_FTPERC": "Clutch Free Throw Field Goal Percentage",
+    "CLUTCH_SM": "Clutch Scoring Margin",
+    "CLUTCH_REB": "Average Clutch Rebounds",
+    "OPP_CLTCH_REB": "Average Opponent Clutch Rebounds",
+    "CLTCH_OFF_REB": "Average Clutch Offensive Rebounds",
+    "OPP_CLTCH_OFF_REB": "Average Clutch Opponent Offensive Rebounds",
+    "CLTCH_TURN": "Average Clutch Turnovers",
+    "CLTCH_OPP_TURN": "Average Clutch Opponent Turnovers",
+    "CLTCH_STL": "Average Clutch Steals",
+    "TOP25_CLUTCH": "Clutch Games Against Top 25 Opponents",
+    "OVERTIME_GAMES": "Overtime Games"
+}
+
+# -----------------------
 # Define stat/rank pairs
 # -----------------------
 stat_pairs = [
@@ -48,7 +67,7 @@ st.subheader("Clutch Performance Summary")
 summary_rows = []
 for stat, rank in stat_pairs:
     summary_rows.append({
-        "Stat": stat.replace("CLUTCH_", "").replace("_", " "),
+        "Stat": stat_name_map.get(stat, stat),
         "Value": team_data.get(stat, np.nan),
         "Rank": team_data.get(rank, np.nan)
     })
@@ -56,7 +75,7 @@ for stat, rank in stat_pairs:
 # Add extras at the bottom
 for stat in extra_stats:
     summary_rows.append({
-        "Stat": stat.replace("CLUTCH_", "").replace("_", " "),
+        "Stat": stat_name_map.get(stat, stat),
         "Value": team_data.get(stat, np.nan),
         "Rank": None
     })
