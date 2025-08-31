@@ -83,3 +83,9 @@ with cols[2]:
         """,
         unsafe_allow_html=True,
     )
+
+
+
+# Change average ranking to Statistical Strength
+# Standardize that to be white and words black for the team because night mode messes it up
+# Properly connect the links
