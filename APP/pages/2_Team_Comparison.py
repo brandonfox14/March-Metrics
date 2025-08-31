@@ -189,3 +189,7 @@ fig.update_layout(
 )
 
 st.plotly_chart(fig, use_container_width=True)
+
+
+
+# need to fix the chart at the bottom I also want to add steal to turnover ratio, and I need to adjust the groupings of stats.
