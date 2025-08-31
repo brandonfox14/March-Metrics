@@ -16,14 +16,9 @@ df = load_data()
 # Team Selection
 # -----------------------
 teams_sorted = sorted(df["Teams"].dropna().unique().tolist())
-col1, col2 = st.columns(2)
-with col1:
-    team_a = st.selectbox("Select Left Team", teams_sorted, index=0, key="clutch_team_a")
-with col2:
-    team_b = st.selectbox("Select Right Team", teams_sorted, index=1, key="clutch_team_b")
+team_name = st.selectbox("Select Team", teams_sorted, index=0, key="clutch_team")
 
-team_a_data = df[df["Teams"] == team_a].iloc[0]
-team_b_data = df[df["Teams"] == team_b].iloc[0]
+team_data = df[df["Teams"] == team_name].iloc[0]
 
 # -----------------------
 # Clutch Stats List
@@ -50,29 +45,31 @@ st.subheader("Clutch Performance Summary")
 
 summary_rows = []
 for stat in clutch_stats:
-    val_a = team_a_data.get(stat, np.nan)
-    val_b = team_b_data.get(stat, np.nan)
+    val = team_data.get(stat, np.nan)
     summary_rows.append({
         "Stat": stat,
-        f"{team_a}": val_a,
-        f"{team_b}": val_b
+        f"{team_name}": val
     })
 
 summary_df = pd.DataFrame(summary_rows)
-st.dataframe(summary_df, use_container_width=True)
 
-# -----------------------
-# Visualization: Shooting % Clutch vs Season
-# -----------------------
-st.subheader("Shooting: Clutch vs Season")
+# If no clutch data, display note
+if summary_df[f"{team_name}"].isna().any():
+    st.warning(f"{team_name} has no clutch games.")
+else:
+    st.dataframe(summary_df, use_container_width=True)
 
-shooting_stats = ["FG%", "3PT%", "FT%"]
-season_cols = ["FG_PERC", "FG3_PERC", "FT_PERC"]
-clutch_cols = ["CLUTCH_FGPERC", "CLUTCH_3FGPERC", "CLUTCH_FTPERC"]
+    # -----------------------
+    # Visualization: Shooting % Clutch vs Season
+    # -----------------------
+    st.subheader("Shooting: Clutch vs Season")
 
-def build_shooting_chart(team_name, team_data):
-    season_values = [team_data[c] * 100 for c in season_cols]
-    clutch_values = [team_data[c] * 100 for c in clutch_cols]
+    shooting_stats = ["FG%", "3PT%", "FT%"]
+    season_cols = ["FG_PERC", "FG3_PERC", "FT_PERC"]
+    clutch_cols = ["CLUTCH_FGPERC", "CLUTCH_3FGPERC", "CLUTCH_FTPERC"]
+
+    season_values = [team_data[c] * 100 for c in season_cols]  # season still needs *100
+    clutch_values = [team_data[c] for c in clutch_cols]        # clutch already in percent
 
     fig = go.Figure()
     fig.add_trace(go.Bar(
@@ -93,12 +90,5 @@ def build_shooting_chart(team_name, team_data):
         yaxis=dict(title="Percentage"),
         template="plotly_white"
     )
-    return fig
 
-col1, col2 = st.columns(2)
-with col1:
-    st.plotly_chart(build_shooting_chart(team_a, team_a_data), use_container_width=True)
-with col2:
-    st.plotly_chart(build_shooting_chart(team_b, team_b_data), use_container_width=True)
-
-
+    st.plotly_chart(fig, use_container_width=True)
