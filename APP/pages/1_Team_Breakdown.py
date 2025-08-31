@@ -287,3 +287,6 @@ build_section_chart(other_cols, "Rebounds / AST / TO / STL")
 build_section_chart(extras_cols, "Extra Statistics")
 
 
+
+# I need to adjust some of the groupings, add steal to turnover ratio, 
+# and add headers to the offensive columns to explain that rankings is the far right column
