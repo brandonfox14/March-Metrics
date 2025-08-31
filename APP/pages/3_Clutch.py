@@ -13,48 +13,58 @@ def load_data():
 df = load_data()
 
 # -----------------------
-# Team Selection
+# Pick default team = highest CLUTCH_FGM
 # -----------------------
+default_team = df.loc[df["CLUTCH_FGM"].idxmax(), "Teams"]
 teams_sorted = sorted(df["Teams"].dropna().unique().tolist())
-team_name = st.selectbox("Select Team", teams_sorted, index=0, key="clutch_team")
+team_name = st.selectbox("Select Team", teams_sorted, index=teams_sorted.index(default_team), key="clutch_team")
 
 team_data = df[df["Teams"] == team_name].iloc[0]
 
 # -----------------------
-# Clutch Stats List
+# Define stat/rank pairs
 # -----------------------
-clutch_stats = [
-    "CLUTCH_FGM","CLUTCH_FGA","CLUTCH_FGPERC","CLUTCH_FG_RANK",
-    "CLUTCH_3FGM","CLUTCH_3FGA","CLUTCH_3FGPERC","CLUTCH_3_RANK",
-    "CLUTCH_FTM","CLUTCH_FTA","CLUTCH_FTPERC","CLUTCH_FT_RANK",
-    "CLUTCH_SM","CLUTCH_SM_RANK",
-    "CLUTCH_REB","CLUTCH_REB_RANK",
-    "OPP_CLTCH_REB","OPP_CLTCH_REB_RANK",
-    "CLTCH_OFF_REB","CLTCH_OFF_REB_RANK",
-    "OPP_CLTCH_OFF_REB","OPP_CLTCH_OFF_REB_RANK",
-    "CLTCH_TURN","CLTCH_TURN_RANK",
-    "CLTCH_OPP_TURN","CLTCH_OPP_TURN_RANK",
-    "CLTCH_STL","CLTCH_STL_RANK",
-    "TOP25_CLUTCH","OVERTIME_GAMES"
+stat_pairs = [
+    ("CLUTCH_FGPERC", "CLUTCH_FG_RANK"),
+    ("CLUTCH_3FGPERC", "CLUTCH_3_RANK"),
+    ("CLUTCH_FTPERC", "CLUTCH_FT_RANK"),
+    ("CLUTCH_SM", "CLUTCH_SM_RANK"),
+    ("CLUTCH_REB", "CLUTCH_REB_RANK"),
+    ("OPP_CLTCH_REB", "OPP_CLTCH_REB_RANK"),
+    ("CLTCH_OFF_REB", "CLTCH_OFF_REB_RANK"),
+    ("OPP_CLTCH_OFF_REB", "OPP_CLTCH_OFF_REB_RANK"),
+    ("CLTCH_TURN", "CLTCH_TURN_RANK"),
+    ("CLTCH_OPP_TURN", "CLTCH_OPP_TURN_RANK"),
+    ("CLTCH_STL", "CLTCH_STL_RANK"),
 ]
 
+extra_stats = ["TOP25_CLUTCH", "OVERTIME_GAMES"]
+
 # -----------------------
-# Summary Table
+# Build Summary Table
 # -----------------------
 st.subheader("Clutch Performance Summary")
 
 summary_rows = []
-for stat in clutch_stats:
-    val = team_data.get(stat, np.nan)
+for stat, rank in stat_pairs:
     summary_rows.append({
-        "Stat": stat,
-        f"{team_name}": val
+        "Stat": stat.replace("CLUTCH_", "").replace("_", " "),
+        "Value": team_data.get(stat, np.nan),
+        "Rank": team_data.get(rank, np.nan)
+    })
+
+# Add extras at the bottom
+for stat in extra_stats:
+    summary_rows.append({
+        "Stat": stat.replace("CLUTCH_", "").replace("_", " "),
+        "Value": team_data.get(stat, np.nan),
+        "Rank": None
     })
 
 summary_df = pd.DataFrame(summary_rows)
 
-# If no clutch data, display note
-if summary_df[f"{team_name}"].isna().any():
+# If no clutch data, show warning
+if summary_df["Value"].isna().any():
     st.warning(f"{team_name} has no clutch games.")
 else:
     st.dataframe(summary_df, use_container_width=True)
@@ -68,7 +78,7 @@ else:
     season_cols = ["FG_PERC", "FG3_PERC", "FT_PERC"]
     clutch_cols = ["CLUTCH_FGPERC", "CLUTCH_3FGPERC", "CLUTCH_FTPERC"]
 
-    season_values = [team_data[c] * 100 for c in season_cols]  # season still needs *100
+    season_values = [team_data[c] * 100 for c in season_cols]  # season needs *100
     clutch_values = [team_data[c] for c in clutch_cols]        # clutch already in percent
 
     fig = go.Figure()
