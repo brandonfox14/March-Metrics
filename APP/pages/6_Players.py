@@ -52,16 +52,16 @@ for col in percent_cols:
 # Rename columns to Common Language
 # --------------------
 rename_map = {
-    "FG_PERC_Top7_per": "Field Goal Percentage",
-    "FG3_PERC_Top7_per": "3 Field Goal Percentage",
-    "FT_PERC_Top7_per": "Free Throw Percentage",
-    "OReb-Top7-Perc": "Offensive Rebounds Per Game",
-    "DReb-Top7-Perc": "Defensive Rebounds Per Game",
-    "Rebounds-Top7-Perc": "Rebounds Per Game",
-    "AST-Top7-Perc": "Assists Per Game",
-    "TO-Top7-Perc": "Turnover Per Game",
-    "STL-Top7-Perc": "Steals Per Game",
-    "Points-Top7-Perc": "Points Per Game",
+    "FG_PERC-Top7": "Field Goal Percentage",
+    "FG3_PERC-Top7": "3 Field Goal Percentage",
+    "FT_PERC-Top7": "Free Throw Percentage",
+    "OReb-Top7": "Offensive Rebounds Per Game",
+    "DReb-Top7": "Defensive Rebounds Per Game",
+    "Rebounds-Top7": "Rebounds Per Game",
+    "AST-Top7": "Assists Per Game",
+    "TO-Top7": "Turnover Per Game",
+    "STL-Top7": "Steals Per Game",
+    "Points-Top7": "Points Per Game",
     "Start Percentage top 7": "Starting Percentage",
     "FGM-Top7-Perc": "Core 7 Percentage of Team Field Goals Made",
     "FG3sM-Top7-Perc": "Core 7 Percentage of Team 3 Field Goals Made",
@@ -176,5 +176,6 @@ fig2.update_layout(
 )
 
 st.plotly_chart(fig2)
+
 
 
