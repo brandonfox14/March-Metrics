@@ -1,26 +1,39 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 
-# Cache the data loading
+# --------------------
+# Load Data
+# --------------------
 @st.cache_data
 def load_data():
     return pd.read_csv("Data/All_stats.csv", encoding="latin1")
 
 df = load_data()
 
-# Dropdowns
-team_choice = st.selectbox("Select a Team", sorted(df["Teams"].unique()))
+# --------------------
+# User Selection
+# --------------------
+team_choice = st.selectbox("Select Team", sorted(df["Teams"].unique()))
 conf = df.loc[df["Teams"] == team_choice, "Conference"].values[0]
 
-# --- Define columns to drop
-drop_cols = [
-    "FGM_TOP7", "FGA-Top7", "FG3sM-Top7", "FG3sA-Top7", 
-    "FTM-Top7", "FTA-Top7"
-]
-df = df.drop(columns=[c for c in drop_cols if c in df.columns])
+team_df = df[df["Teams"] == team_choice]
+conf_df = df[df["Conference"] == conf]
 
-# --- Define percentage columns (convert to actual percentages)
+# --------------------
+# Drop unnecessary columns
+# --------------------
+drop_cols = [
+    "FGM_TOP7", "FGA-Top7", "FG3sM-Top7", "FG3sA-Top7", "FTM-Top7", "FTA-Top7",
+    "FGA-Top7-Perc", "FG3sA-Top7-Perc", "FTA-Top7-Perc"
+]
+team_df = team_df.drop(columns=[c for c in drop_cols if c in team_df.columns])
+conf_df = conf_df.drop(columns=[c for c in drop_cols if c in conf_df.columns])
+
+# --------------------
+# Convert decimal percentages -> true percentages
+# --------------------
 percent_cols = [
     "FG_PERC-Top7", "FG3_PERC-Top7", "FT_PERC-Top7",
     "FG_PERC_Top7_per", "FG3_PERC_Top7_per", "FT_PERC_Top7_per",
@@ -28,12 +41,15 @@ percent_cols = [
     "AST-Top7-Perc", "TO-Top7-Perc", "STL-Top7-Perc",
     "Points-Top7-Perc", "Start Percentage top 7"
 ]
-
 for col in percent_cols:
-    if col in df.columns:
-        df[col] = df[col] * 100
+    if col in team_df.columns:
+        team_df[col] = team_df[col] * 100
+    if col in conf_df.columns:
+        conf_df[col] = conf_df[col] * 100
 
-# --- Map columns to common language
+# --------------------
+# Rename columns to Common Language
+# --------------------
 rename_map = {
     "FG_PERC_Top7_per": "Field Goal Percentage",
     "FG3_PERC_Top7_per": "3 Field Goal Percentage",
@@ -60,10 +76,14 @@ rename_map = {
     "STL-Top7": "Core 7 Percentage of Team Steals",
     "Points per Game-Top7": "Core 7 Percentage of Team Points"
 }
-df = df.rename(columns=rename_map)
+team_df = team_df.rename(columns=rename_map)
+conf_df = conf_df.rename(columns=rename_map)
 
-# --- Subset for summary table (percentages)
-summary_cols = [
+# --------------------
+# Summary Tables
+# --------------------
+# Table 1: Core Top7 percentages
+core_cols = [
     "Field Goal Percentage", "3 Field Goal Percentage", "Free Throw Percentage",
     "Offensive Rebounds Per Game", "Defensive Rebounds Per Game", "Rebounds Per Game",
     "Assists Per Game", "Turnover Per Game", "Steals Per Game", "Points Per Game",
@@ -73,15 +93,14 @@ summary_cols = [
     "Core 7 Percentage of Team Free Throws Made"
 ]
 
-summary_df = df.loc[df["Teams"] == team_choice, summary_cols].T.reset_index()
-summary_df.columns = ["Stat", "Value"]
+summary_core = pd.DataFrame({
+    "Stat": core_cols,
+    "Team Value": [team_df.iloc[0][c] for c in core_cols],
+    "Conference Average": [conf_df[c].mean() for c in core_cols]
+})
 
-# --- Show summary table
-st.subheader(f"{team_choice} Core 7 Players Statistics")
-st.dataframe(summary_df)
-
-# --- Stats for bar + line chart
-chart_cols = [
+# Table 2: Raw performance stats for Top7
+stat_cols = [
     "Core 7 Percentage of Team Field Goal Percentage",
     "Core 7 Percentage of Team 3 Point Field Goal Percentage",
     "Core 7 Percentage of Team Free Throw Percentage",
@@ -94,9 +113,65 @@ chart_cols = [
     "Core 7 Percentage of Team Points"
 ]
 
-chart_df = df.loc[df["Teams"] == team_choice, chart_cols].T.reset_index()
-chart_df.columns = ["Stat", "Value"]
+summary_stats = pd.DataFrame({
+    "Stat": stat_cols,
+    "Team Value": [team_df.iloc[0][c] for c in stat_cols],
+    "Conference Average": [conf_df[c].mean() for c in stat_cols]
+})
 
-# --- Bar chart
-fig1 = px.bar(chart_df, x="Stat", y="Value", title=f"{team_choice} Percent of Team Stats for Core 7 Players")
-st.plotly_chart(fig1, use_container_width=True)
+# --------------------
+# Show Summary Tables
+# --------------------
+st.subheader(f"{team_choice} Core 7 Players Statistics")
+st.dataframe(summary_core)
+
+st.subheader(f"{team_choice} Percent of Team Stats for Core 7 Players")
+st.dataframe(summary_stats)
+
+# --------------------
+# Visual 1: Core Contribution (Conference-based)
+# --------------------
+fig1 = px.bar(summary_core, x="Stat", y=["Team Value", "Conference Average"],
+              barmode="group",
+              title=f"{team_choice} vs {conf} – Core 7 Players Statistics")
+st.plotly_chart(fig1)
+
+# --------------------
+# Visual 2: Stats Bar with Ranking Overlay
+# --------------------
+rankings = {col: df[col].rank(ascending=False).loc[df["Teams"] == team_choice].values[0]
+            for col in stat_cols if col in df.columns}
+
+fig2 = go.Figure()
+
+# Add bar chart (team vs conf)
+fig2.add_trace(go.Bar(
+    x=summary_stats["Stat"],
+    y=summary_stats["Team Value"],
+    name=f"{team_choice} Value",
+    marker_color="blue"
+))
+fig2.add_trace(go.Bar(
+    x=summary_stats["Stat"],
+    y=summary_stats["Conference Average"],
+    name=f"{conf} Avg",
+    marker_color="gray"
+))
+
+# Add ranking overlay (line graph, flipped so 1 = top)
+fig2.add_trace(go.Scatter(
+    x=list(rankings.keys()),
+    y=[365 - r for r in rankings.values()],
+    mode="lines+markers",
+    name="Team Ranking",
+    yaxis="y2",
+    line=dict(color="red", width=2)
+))
+
+fig2.update_layout(
+    title=f"{team_choice} Percent of Team Stats for Core 7 Players with Rankings Overlay",
+    yaxis=dict(title="Stat Value"),
+    yaxis2=dict(title="Ranking (1 = Top)", overlaying="y", side="right")
+)
+
+st.plotly_chart(fig2)
