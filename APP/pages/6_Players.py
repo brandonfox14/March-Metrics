@@ -39,7 +39,8 @@ percent_cols = [
     "FG_PERC_Top7_per", "FG3_PERC_Top7_per", "FT_PERC_Top7_per",
     "OReb-Top7-Perc", "DReb-Top7-Perc", "Rebounds-Top7-Perc",
     "AST-Top7-Perc", "TO-Top7-Perc", "STL-Top7-Perc",
-    "Points-Top7-Perc", "Start Percentage top 7"
+    "Points-Top7-Perc", "Start Percentage top 7", 
+    "FGM-Top7-Perc", "FG3sM-Top7-Perc", "FTM-Top7-Perc"
 ]
 for col in percent_cols:
     if col in team_df.columns:
@@ -175,4 +176,5 @@ fig2.update_layout(
 )
 
 st.plotly_chart(fig2)
+
 
