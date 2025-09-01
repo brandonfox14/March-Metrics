@@ -87,10 +87,7 @@ core_cols = [
     "Field Goal Percentage", "3 Field Goal Percentage", "Free Throw Percentage",
     "Offensive Rebounds Per Game", "Defensive Rebounds Per Game", "Rebounds Per Game",
     "Assists Per Game", "Turnover Per Game", "Steals Per Game", "Points Per Game",
-    "Starting Percentage",
-    "Core 7 Percentage of Team Field Goals Made",
-    "Core 7 Percentage of Team 3 Field Goals Made",
-    "Core 7 Percentage of Team Free Throws Made"
+    "Starting Percentage"
 ]
 
 summary_core = pd.DataFrame({
@@ -110,7 +107,10 @@ stat_cols = [
     "Core 7 Percentage of Team Assistants",
     "Core 7 Percentage of Team Turnovers",
     "Core 7 Percentage of Team Steals",
-    "Core 7 Percentage of Team Points"
+    "Core 7 Percentage of Team Points",
+    "Core 7 Percentage of Team Field Goals Made",
+    "Core 7 Percentage of Team 3 Field Goals Made",
+    "Core 7 Percentage of Team Free Throws Made"
 ]
 
 summary_stats = pd.DataFrame({
@@ -175,3 +175,4 @@ fig2.update_layout(
 )
 
 st.plotly_chart(fig2)
+
