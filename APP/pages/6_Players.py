@@ -192,13 +192,6 @@ st.plotly_chart(fig1, use_container_width=True)
 label_to_orig = {v: k for k, v in rename_pct_of_team.items()}
 orig_cols_for_rank = [label_to_orig[lbl] for lbl in pct_team_cols_labels if lbl in label_to_orig]
 
-rankings = {}
-for orig_col in orig_cols_for_rank:
-    if orig_col in df.columns:
-        series = pd.to_numeric(df[orig_col], errors="coerce")
-        # Higher value = better rank (descending)
-        rankings[rename_pct_of_team[orig_col]] = series.rank(ascending=False).loc[df["Teams"] == team_choice].values[0]
-
 fig2 = go.Figure()
 # Bar chart
 fig2.add_trace(go.Bar(
@@ -211,17 +204,10 @@ fig2.add_trace(go.Bar(
     y=summary_stats["Conference Average"],
     name=f"{conf} Avg"
 ))
-# Ranking overlay (flip: 1 at top)
-fig2.add_trace(go.Scatter(
-    x=list(rankings.keys()),
-    y=[365 - r for r in rankings.values()],
-    mode="lines+markers",
-    name="Team Ranking",
-    yaxis="y2"
-))
 fig2.update_layout(
     title=f"{team_choice} Percent of Team Stats for Core 7 Players with Rankings Overlay",
     yaxis=dict(title="Percent / Value"),
     yaxis2=dict(title="Ranking (1 = Top)", overlaying="y", side="right")
 )
 st.plotly_chart(fig2, use_container_width=True)
+
