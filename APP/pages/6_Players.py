@@ -1,72 +1,82 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-
-def show_top7_section(team_data, conference_data):
-    st.header("Top 7 Players Analysis")
-
-    # --- Check if data exists ---
-    if team_data["FGM_TOP7"].isna().any():
-        st.write("*This team does not have a full top 7 rotation*")
-        return
-
-    # --- Stats & Ranks (side by side) ---
-    stats_with_ranks = {
-        "FGM": ("FGM_TOP7", "FGM_TOP7_RANK"),
-        "FGA": ("FGA-Top7", "FGA-Top7_RANK"),
-        "3PM": ("FG3sM-Top7", "FG3sM-Top7_RANK"),
-        "3PA": ("FG3sA-Top7", "FG3sA-Top7_RANK"),
-        "FTM": ("FTM-Top7", "FTM-Top7_RANK"),
-        "FTA": ("FTA-Top7", "FTA-Top7_RANK"),
-        "FG%": ("FG_PERC-Top7", "FG_PERC-Top7_RANK"),
-        "3P%": ("FG3_PERC-Top7", "FG3_PERC-Top7_RANK"),
-        "FT%": ("FT_PERC-Top7", "FT_PERC-Top7_RANK"),
-        "OReb": ("OReb-Top7", "OReb-Top7_RANK"),
-        "DReb": ("DReb-Top7", "DReb-Top7_RANK"),
-        "Rebounds": ("Rebounds-Top7", "Rebounds-Top7_RANK"),
-        "AST": ("AST-Top7", "AST-Top7_RANK"),
-        "TO": ("TO-Top7", "TO-Top7_RANK"),
-        "STL": ("STL-Top7", "STL-Top7_RANK"),
-        "Points": ("Points per Game-Top7", "Points-Top7_RANK"),
-        "Start %": ("Start Percentage top 7", "Start Percentage top 7_RANK")
-    }
-
-    summary_data = {}
-    for stat, (val_col, rank_col) in stats_with_ranks.items():
-        summary_data[stat] = [team_data[val_col], team_data[rank_col]]
-
-    summary_df = pd.DataFrame(summary_data, index=["Value", "Rank"]).T
-    st.subheader("Top 7 Player Stats Summary")
-    st.dataframe(summary_df)
-
-    # --- Percentage comparison (vs conference) ---
-    perc_cols = [col for col in team_data.index if "-Perc" in col]
-    team_perc = team_data[perc_cols].astype(float)
-    conf_perc = conference_data[perc_cols].mean()
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-    x = range(len(perc_cols))
-    ax.bar(x, team_perc, width=0.4, label="Team")
-    ax.bar([i+0.4 for i in x], conf_perc, width=0.4, label="Conference Avg")
-    ax.set_xticks([i+0.2 for i in x])
-    ax.set_xticklabels([col.replace("-Perc", "") for col in perc_cols], rotation=45)
-    ax.set_ylabel("Proportion (decimal)")
-    ax.set_title("Top 7 Contribution vs Conference")
-    ax.legend()
-    st.pyplot(fig)
-
-    # --- Standard Points Visual ---
-    points = float(team_data["Points per Game-Top7"])
-    rank = int(team_data["Points-Top7_RANK"])
-
-    fig, ax1 = plt.subplots(figsize=(6,4))
-    ax1.bar(["Points per Game"], [points], color="blue", label="Points")
-    ax2 = ax1.twinx()
-    ax2.plot(["Points per Game"], [rank], color="red", marker="o", label="Rank")
-    ax2.invert_yaxis()  # so rank 1 is top
-    ax1.set_ylabel("Points")
-    ax2.set_ylabel("Rank")
-    plt.title("Top 7 Points and Rank")
-    st.pyplot(fig)
+import plotly.express as px
 
 
+
+
+@st.cache_data
+def load_data():
+    return pd.read_csv("Data/All_stats.csv", encoding="latin1")
+
+df = load_data()
+
+
+
+# --- Team Selection ---
+teams = sorted(df["Teams"].unique())
+default_team = teams[0]
+team_choice = st.selectbox("Select a Team", teams, index=teams.index(default_team))
+team_data = df[df["Teams"] == team_choice].iloc[0]
+
+st.header(f"Top 7 Players Summary – {team_choice}")
+
+# --- Summary Table ---
+# Stats without percentages
+stats = [
+    "FGM_TOP7", "FGA-Top7", "FG3sM-Top7", "FG3sA-Top7",
+    "FTM-Top7", "FTA-Top7", "FG_PERC-Top7", "FG3_PERC-Top7",
+    "FT_PERC-Top7", "OReb-Top7", "DReb-Top7", "Rebounds-Top7",
+    "AST-Top7", "TO-Top7", "STL-Top7", "Points per Game-Top7"
+]
+
+# Percentage stats
+perc_stats = [
+    "FGM-Top7-Perc", "FGA-Top7-Perc", "FG3sM-Top7-Perc", "FG3sA-Top7-Perc",
+    "FTM-Top7-Perc", "FTA-Top7-Perc", "FG_PERC_Top7_per", "FG3_PERC_Top7_per",
+    "FT_PERC_Top7_per", "OReb-Top7-Perc", "DReb-Top7-Perc", "Rebounds-Top7-Perc",
+    "AST-Top7-Perc", "TO-Top7-Perc", "STL-Top7-Perc", "Points-Top7-Perc"
+]
+
+summary_data = {
+    "Stat": stats + perc_stats,
+    "Value": [team_data[s] for s in stats + perc_stats]
+}
+summary_df = pd.DataFrame(summary_data)
+
+st.dataframe(summary_df)
+
+# --- Visual 1: Conference Comparison (Top 7 Percentages vs Conference) ---
+conf = team_data["Conference"]
+conf_df = df[df["Conference"] == conf]
+
+conf_avg = conf_df[perc_stats].mean().reset_index()
+conf_avg.columns = ["Stat", "Conference Average"]
+
+team_perc = team_data[perc_stats].reset_index()
+team_perc.columns = ["Stat", "Team Value"]
+
+compare_df = pd.merge(team_perc, conf_avg, on="Stat")
+
+fig1 = px.bar(compare_df, x="Stat", y=["Team Value", "Conference Average"],
+              barmode="group", title=f"{team_choice} vs {conf} – Top 7 Percentages")
+st.plotly_chart(fig1, use_container_width=True)
+
+# --- Visual 2: Points per Game (bar + ranking line) ---
+# Make sure ranking column exists (you may need to replace with actual name)
+df["Points per Game-Top7-Rank"] = df["Points per Game-Top7"].rank(ascending=False)
+
+points_df = df.sort_values("Points per Game-Top7", ascending=False).reset_index()
+
+fig2 = px.bar(points_df, x="Teams", y="Points per Game-Top7",
+              title="Top 7 Players – Points per Game with Ranking")
+
+# Add ranking line
+fig2.add_scatter(x=points_df["Teams"], y=points_df["Points per Game-Top7-Rank"],
+                 mode="lines+markers", name="Rank (lower is better)", yaxis="y2")
+
+fig2.update_layout(
+    yaxis2=dict(title="Rank", overlaying="y", side="right", autorange="reversed")
+)
+
+st.plotly_chart(fig2, use_container_width=True)
