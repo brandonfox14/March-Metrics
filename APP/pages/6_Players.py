@@ -38,7 +38,7 @@ team_df = df[df["Teams"] == team_choice].copy()
 conf_df = df[df["Conference"] == conf].copy() if "Conference" in df.columns else df.copy()
 
 # --------------------
-# Drop unnecessary columns (raw counts you said to drop)
+# Drop unnecessary columns
 # --------------------
 drop_cols = [
     "FGM_TOP7", "FGA-Top7", "FG3sM-Top7", "FG3sA-Top7", "FTM-Top7", "FTA-Top7",
@@ -48,20 +48,14 @@ team_df.drop(columns=[c for c in drop_cols if c in team_df.columns], inplace=Tru
 conf_df.drop(columns=[c for c in drop_cols if c in conf_df.columns], inplace=True, errors="ignore")
 
 # --------------------
-# Columns to convert from fractions -> percentages (×100)
-# Core (Top7 actual stats): FG%, 3FG%, FT% come from *-Top7 (fractions)
-# Per-game & "percent of team" shares: *-Top7-Perc and FG_*_Top7_per are also fractions
+# Convert fractions -> percentages
 # --------------------
 percent_cols = [
-    # Core Top 7 actual percentages
     "FG_PERC-Top7", "FG3_PERC-Top7", "FT_PERC-Top7",
-
-    # Percent of team / per-game share metrics for Top 7
     "FG_PERC_Top7_per", "FG3_PERC_Top7_per", "FT_PERC_Top7_per",
     "OReb-Top7-Perc", "DReb-Top7-Perc", "Rebounds-Top7-Perc",
     "AST-Top7-Perc", "TO-Top7-Perc", "STL-Top7-Perc", "Points-Top7-Perc",
     "Start Percentage top 7",
-    # Added three contribution-only extras (keep them in percent-of-team table)
     "FGM-Top7-Perc", "FG3sM-Top7-Perc", "FTM-Top7-Perc",
 ]
 for col in percent_cols:
@@ -70,7 +64,6 @@ for col in percent_cols:
     if col in conf_df.columns:
         conf_df[col] = pd.to_numeric(conf_df[col], errors="coerce") * 100
 
-# Ensure numeric for other core Top7 per-game stat columns
 numeric_cols_extra = [
     "OReb-Top7", "DReb-Top7", "Rebounds-Top7", "AST-Top7",
     "TO-Top7", "STL-Top7", "Points per Game-Top7"
@@ -82,8 +75,7 @@ for col in numeric_cols_extra:
         conf_df[col] = pd.to_numeric(conf_df[col], errors="coerce")
 
 # --------------------
-# Rename columns to Common Language
-# CORE TABLE = Top 7 Players' actual stats (FG% etc from *-Top7, not *_Top7_per)
+# Rename columns
 # --------------------
 rename_core = {
     "FG_PERC-Top7": "Field Goal Percentage",
@@ -99,7 +91,6 @@ rename_core = {
     "Start Percentage top 7": "Starting Percentage",
 }
 
-# PERCENT-OF-TEAM TABLE (a.k.a. "percentage of percentages")
 rename_pct_of_team = {
     "FG_PERC_Top7_per": "Core 7 Percentage of Team Field Goal Percentage",
     "FG3_PERC_Top7_per": "Core 7 Percentage of Team 3 Point Field Goal Percentage",
@@ -158,7 +149,6 @@ summary_stats = pd.DataFrame({
     "Conference Average": [conf_df_pct[c].mean() if c in conf_df_pct.columns else np.nan for c in pct_team_cols_labels],
 })
 
-# Force numeric (avoids Plotly wide-form type errors)
 for df_ in (summary_core, summary_stats):
     df_["Team Value"] = pd.to_numeric(df_["Team Value"], errors="coerce")
     df_["Conference Average"] = pd.to_numeric(df_["Conference Average"], errors="coerce")
@@ -173,27 +163,48 @@ st.subheader(f"{team_choice} Percent of Team Stats for Core 7 Players")
 st.dataframe(summary_stats, use_container_width=True)
 
 # --------------------
-# Visual 1: Core Contribution (Conference-based) — uses CORE table
+# Visual 1a: Percentages Chart
 # --------------------
-fig1 = px.bar(
-    summary_core,
+percent_cols_chart = [
+    "Field Goal Percentage", "3 Field Goal Percentage", "Free Throw Percentage",
+    "Points Per Game", "Starting Percentage"
+]
+summary_percent = summary_core[summary_core["Stat"].isin(percent_cols_chart)]
+
+fig1a = px.bar(
+    summary_percent,
     x="Stat",
     y=["Team Value", "Conference Average"],
     barmode="group",
-    title=f"{team_choice} vs {conf} – Core 7 Players Statistics"
+    title=f"{team_choice} vs {conf} – Core 7 Percentages & Points"
 )
-st.plotly_chart(fig1, use_container_width=True)
+st.plotly_chart(fig1a, use_container_width=True)
 
 # --------------------
-# Visual 2: Percent-of-team bars with ranking overlay
-# Rankings computed from ORIGINAL column names in df
+# Visual 1b: Counting Stats Chart
 # --------------------
-# Map labels back to original columns for rankings
+counting_cols_chart = [
+    "Offensive Rebounds Per Game", "Defensive Rebounds Per Game", "Rebounds Per Game",
+    "Assists Per Game", "Turnover Per Game", "Steals Per Game"
+]
+summary_counting = summary_core[summary_core["Stat"].isin(counting_cols_chart)]
+
+fig1b = px.bar(
+    summary_counting,
+    x="Stat",
+    y=["Team Value", "Conference Average"],
+    barmode="group",
+    title=f"{team_choice} vs {conf} – Core 7 Counting Stats"
+)
+st.plotly_chart(fig1b, use_container_width=True)
+
+# --------------------
+# Visual 2: Percent-of-team bars (still with ranking overlay)
+# --------------------
 label_to_orig = {v: k for k, v in rename_pct_of_team.items()}
 orig_cols_for_rank = [label_to_orig[lbl] for lbl in pct_team_cols_labels if lbl in label_to_orig]
 
 fig2 = go.Figure()
-# Bar chart
 fig2.add_trace(go.Bar(
     x=summary_stats["Stat"],
     y=summary_stats["Team Value"],
@@ -205,9 +216,7 @@ fig2.add_trace(go.Bar(
     name=f"{conf} Avg"
 ))
 fig2.update_layout(
-    title=f"{team_choice} Percent of Team Stats for Core 7 Players with Rankings Overlay",
-    yaxis=dict(title="Percent / Value"),
-    yaxis2=dict(title="Ranking (1 = Top)", overlaying="y", side="right")
+    title=f"{team_choice} Percent of Team Stats for Core 7 Players",
+    yaxis=dict(title="Percent / Value")
 )
 st.plotly_chart(fig2, use_container_width=True)
-
