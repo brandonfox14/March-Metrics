@@ -1,100 +1,101 @@
-import pandas as pd
-import numpy as np
-import random
-
-# Load teams & conference info
-df = pd.read_csv("Data/All_stats.csv", encoding="latin1")
-teams = df[["Teams", "Conference"]].drop_duplicates().reset_index(drop=True)
-
-# Parameters
-num_days = 160
-max_games_per_day = 50
-
-# Create schedule container
-schedule = []
-day_game_counts = {d: 0 for d in range(1, num_days+1)}
-team_games = {team: [] for team in teams["Teams"]}
-
-# Helper function to assign day
-def assign_day(team1, team2):
-    for _ in range(1000):  # safety loop
-        day = random.randint(1, num_days)
-        if (
-            day_game_counts[day] < max_games_per_day and
-            day not in team_games[team1] and
-            day not in team_games[team2]
-        ):
-            day_game_counts[day] += 1
-            team_games[team1].append(day)
-            team_games[team2].append(day)
-            return day
-    return None  # failsafe
-
-# Generate schedule
-for _, row in teams.iterrows():
-    team = row["Teams"]
-    conf = row["Conference"]
-
-    # Opponents
-    conf_opponents = teams[teams["Conference"] == conf]["Teams"].tolist()
-    conf_opponents = [t for t in conf_opponents if t != team]
-
-    non_conf_opponents = teams[teams["Conference"] != conf]["Teams"].tolist()
-
-    # Pick opponents
-    chosen_conf = random.sample(conf_opponents, min(20, len(conf_opponents)))
-    num_non_conf = random.randint(8, 12)
-    chosen_non_conf = random.sample(non_conf_opponents, min(num_non_conf, len(non_conf_opponents)))
-
-    opponents = chosen_conf + chosen_non_conf
-    home_games = 0
-
-    for opp in opponents:
-        # Random home/away but enforce 15+ home games
-        if home_games < 15:
-            home = True
-        else:
-            home = random.choice([True, False])
-
-        home_team = team if home else opp
-        away_team = opp if home else team
-
-        # Assign day
-        day = assign_day(home_team, away_team)
-        if day:
-            schedule.append({
-                "Day": day,
-                "Home": home_team,
-                "Away": away_team,
-                "Conference_Game": int(row["Conference"] == teams.loc[teams["Teams"] == opp, "Conference"].values[0])
-            })
-            if home:
-                home_games += 1
-
-# Save CSV
-schedule_df = pd.DataFrame(schedule)
-schedule_df.sort_values(by=["Day"], inplace=True)
-schedule_df.to_csv("Data/Randomized_Schedule.csv", index=False)
-
-print("✅ Randomized schedule saved to Data/Randomized_Schedule.csv")
-
+# APP/pages/4_Schedule_Predictor.py
 import streamlit as st
 import pandas as pd
-import io
+import numpy as np
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
 
-# After generating schedule_df
-schedule_df = pd.DataFrame(schedule)
-schedule_df.sort_values(by=["Day"], inplace=True)
+# ----------------------------
+# Load Data
+# ----------------------------
+@st.cache_data
+def load_data():
+    all_stats = pd.read_csv("Data/All_stats.csv", encoding="latin1")
+    game_history = pd.read_csv("Data/Daily_predictor_excel.csv", encoding="latin1")
+    schedule = pd.read_csv("Data/Randomized_Schedule.csv", encoding="latin1")
+    return all_stats, game_history, schedule
 
-# Save to CSV buffer
-csv_buffer = io.StringIO()
-schedule_df.to_csv(csv_buffer, index=False)
-csv_bytes = csv_buffer.getvalue().encode("utf-8")
+all_stats, game_history, schedule = load_data()
 
-# Add download button in Streamlit
-st.download_button(
-    label="📥 Download Randomized Schedule CSV",
-    data=csv_bytes,
-    file_name="Randomized_Schedule.csv",
-    mime="text/csv"
-)
+# ----------------------------
+# Preprocess Data
+# ----------------------------
+# Choose features for training (basic efficiency + shooting + rebounding + assists + turnovers)
+features = [
+    "FG_PERC", "FG3_PERC", "FT_PERC",
+    "OReb", "DReb", "Rebounds",
+    "AST", "TO", "STL",
+    "Off_eff", "Def_efficiency hybrid"
+]
+
+# Clean historical games to match features
+game_history = game_history.dropna(subset=["Points", "Opp Points"])
+game_history["Result"] = (game_history["Points"] > game_history["Opp Points"]).astype(int)
+
+# Merge stats for Team and Opponent
+def attach_team_stats(df, team_col, prefix):
+    return df.merge(all_stats[["Teams"] + features], left_on=team_col, right_on="Teams", how="left") \
+             .drop(columns=["Teams"]) \
+             .rename(columns={col: f"{prefix}_{col}" for col in features})
+
+game_history = attach_team_stats(game_history, "Team", "Team")
+game_history = attach_team_stats(game_history, "Opponent", "Opp")
+
+# Final feature set
+X = game_history[[f"Team_{f}" for f in features] + [f"Opp_{f}" for f in features]].fillna(0)
+y = game_history["Result"]
+
+# ----------------------------
+# Train Model
+# ----------------------------
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+model = RandomForestClassifier(n_estimators=200, random_state=42)
+model.fit(X_train, y_train)
+acc = accuracy_score(y_test, model.predict(X_test))
+
+# ----------------------------
+# Predict Future Schedule
+# ----------------------------
+def predict_schedule(schedule_df):
+    schedule_df = attach_team_stats(schedule_df, "Home", "Home")
+    schedule_df = attach_team_stats(schedule_df, "Away", "Away")
+
+    X_future = schedule_df[[f"Home_{f}" for f in features] + [f"Away_{f}" for f in features]].fillna(0)
+    preds = model.predict_proba(X_future)[:, 1]  # probability Home wins
+    schedule_df["Home_Win_Prob"] = preds
+    schedule_df["Predicted_Winner"] = np.where(preds >= 0.5, schedule_df["Home"], schedule_df["Away"])
+    return schedule_df
+
+predicted_schedule = predict_schedule(schedule)
+
+# ----------------------------
+# Streamlit UI
+# ----------------------------
+st.title("🏀 Schedule Predictor")
+st.write(f"Model accuracy on test set: **{acc:.2%}**")
+
+# Selection type
+option = st.radio("Select by:", ["Day", "Team", "Conference"])
+
+if option == "Day":
+    days = sorted(predicted_schedule["Day"].unique())
+    selected_day = st.selectbox("Select Day", days)
+    st.dataframe(predicted_schedule[predicted_schedule["Day"] == selected_day][
+        ["Day", "Home", "Away", "Conference_Game", "Home_Win_Prob", "Predicted_Winner"]
+    ])
+
+elif option == "Team":
+    teams = sorted(all_stats["Teams"].dropna().unique())
+    selected_team = st.selectbox("Select Team", teams)
+    team_games = predicted_schedule[(predicted_schedule["Home"] == selected_team) | 
+                                    (predicted_schedule["Away"] == selected_team)]
+    st.dataframe(team_games[["Day", "Home", "Away", "Conference_Game", "Home_Win_Prob", "Predicted_Winner"]])
+
+elif option == "Conference":
+    conferences = sorted(all_stats["Conference"].dropna().unique())
+    selected_conf = st.selectbox("Select Conference", conferences)
+    teams_in_conf = all_stats[all_stats["Conference"] == selected_conf]["Teams"].unique()
+    conf_games = predicted_schedule[(predicted_schedule["Home"].isin(teams_in_conf)) | 
+                                    (predicted_schedule["Away"].isin(teams_in_conf))]
+    st.dataframe(conf_games[["Day", "Home", "Away", "Conference_Game", "Home_Win_Prob", "Predicted_Winner"]])
