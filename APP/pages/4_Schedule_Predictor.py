@@ -15,13 +15,14 @@ st.set_page_config(layout="wide", page_title="Schedule Predictor")
 # Disclaimer / Note
 # ---------------------------
 st.markdown("""
-### Schedule Predictor (Example)
-
+###
 ⚠️ **Important Note:**  
 The schedules and matchups shown here are **randomly generated**.  
 They are designed to highlight the structure of predicted qualities and outputs within the model framework.  
 The bulk of the underlying predictive work remains proprietary and is held as a **competitive advantage**.  
 This page provides **slight examples of the coding logic** used without revealing too much detail, but it is included here because it ties the full system together.
+
+
 """)
 
 
@@ -365,4 +366,5 @@ st.download_button("📥 Download full predicted schedule (CSV)", data=full_csv,
 # show training note
 if train_warning:
     st.info("Note: ML predictor was not used: " + train_warning + " Baseline ranking used instead.")
+
 
