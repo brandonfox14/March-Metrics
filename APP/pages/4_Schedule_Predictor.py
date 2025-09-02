@@ -1,303 +1,152 @@
-# schedule_predictor_page.py
-import streamlit as st
 import pandas as pd
 import numpy as np
 import random
-import datetime
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from sklearn.pipeline import Pipeline
+from sklearn.ensemble import RandomForestClassifier
 
-import plotly.express as px
-import plotly.graph_objects as go
+import streamlit as st
 
-# ---------------------------
-# Data loading (use exactly your loader)
-# ---------------------------
+# -----------------------------
+# Load data
+# -----------------------------
 @st.cache_data
-def load_data_allstats():
-    return pd.read_csv("Data/All_stats.csv", encoding="latin1")
+def load_data():
+    all_stats = pd.read_csv("Data/All_stats.csv", encoding="latin1")
+    game_history = pd.read_csv("Data/Daily_predictor_excel.csv", encoding="latin1")
+    return all_stats, game_history
 
-@st.cache_data
-def load_data_history():
-    # history file you mentioned
-    return pd.read_csv("Data/Daily_predictor_excel.csv", encoding="latin1")
+all_stats, game_history = load_data()
 
-df_all = load_data_allstats()
-df_hist = load_data_history()
+# -----------------------------
+# Train basic ML model
+# -----------------------------
+def train_predictor(game_history):
+    # Example features (adjust depending on your data schema)
+    features = ["Team_FG%", "Team_PPG", "Opp_FG%", "Opp_PPG"]  
+    target = "Win"  
 
-st.title("Schedule Predictor — Randomized Schedule + Predictions")
+    X = game_history[features]
+    y = game_history[target]
 
-# ---------------------------
-# Utilities to detect columns in history file
-# ---------------------------
-def find_column_like(df, candidates):
-    """Return first matching column name in df whose lowercase contains any candidate (or exact match)."""
-    cols = list(df.columns)
-    for cand in candidates:
-        # try exact first
-        if cand in cols:
-            return cand
-    lower_cols = {c.lower(): c for c in cols}
-    for cand in candidates:
-        lc = cand.lower()
-        for c_lower, c_orig in lower_cols.items():
-            if lc in c_lower or c_lower in lc:
-                return c_orig
-    return None
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Try to find common columns
-home_col = find_column_like(df_hist, ["HomeTeam", "Home", "home_team", "home"])
-away_col = find_column_like(df_hist, ["AwayTeam", "Away", "away_team", "away"])
-home_score_col = find_column_like(df_hist, ["HomeScore", "Home_Score", "home_score", "Score_Home", "Hscore"])
-away_score_col = find_column_like(df_hist, ["AwayScore", "Away_Score", "away_score", "Score_Away", "Ascore"])
-date_col = find_column_like(df_hist, ["Date", "GameDate", "game_date", "date"])
+    model = RandomForestClassifier(n_estimators=200, random_state=42)
+    model.fit(X_train, y_train)
 
-# Inform user about detection
-st.markdown("**Detected historical columns**")
-st.write({
-    "home_col": home_col,
-    "away_col": away_col,
-    "home_score_col": home_score_col,
-    "away_score_col": away_score_col,
-    "date_col": date_col
-})
+    return model
 
-# ---------------------------
-# Build randomized schedule
-# ---------------------------
-@st.cache_data
-def build_randomized_schedule(all_stats_df, days_total=100, conf_games=20, nonconf_min=8, nonconf_max=12, seed=42):
-    random.seed(seed)
-    np.random.seed(seed)
+predictor_model = train_predictor(game_history)
 
-    teams = all_stats_df["Teams"].dropna().unique().tolist()
-    conf_map = all_stats_df.set_index("Teams")["Conference"].to_dict()
+# -----------------------------
+# Schedule Generator
+# -----------------------------
+def generate_schedule(all_stats):
+    teams = all_stats["Team"].unique()
+    conferences = dict(zip(all_stats["Team"], all_stats["Conference"]))
 
-    schedule_rows = []
+    schedule = []
+    day_games_count = {d: 0 for d in range(1, 161)}  
+    team_games_count = {t: 0 for t in teams}
+    team_home_games = {t: 0 for t in teams}
+    team_last_played = {t: 0 for t in teams}  
+
     for team in teams:
-        team_conf = conf_map.get(team, None)
-        # conference opponents
-        conf_pool = [t for t in teams if t != team and conf_map.get(t) == team_conf]
-        # If not enough opponents, allow sampling with replacement
-        if len(conf_pool) == 0:
-            conf_opps = []
-        else:
-            if len(conf_pool) >= conf_games:
-                conf_opps = random.sample(conf_pool, conf_games)
+        team_conf = conferences[team]
+
+        # Conference opponents
+        conf_opponents = [t for t in teams if conferences[t] == team_conf and t != team]
+        conf_games = random.sample(conf_opponents, 20)  
+
+        # Non-conference opponents
+        non_conf_opponents = [t for t in teams if conferences[t] != team_conf]
+        non_conf_games = random.sample(non_conf_opponents, random.randint(8, 12))
+
+        all_opponents = conf_games + non_conf_games
+
+        for i, opp in enumerate(all_opponents):
+            # Assign home/away
+            if team_home_games[team] < 15:
+                home_team, away_team = team, opp
+                team_home_games[team] += 1
             else:
-                # sample with replacement
-                conf_opps = [random.choice(conf_pool) for _ in range(conf_games)]
+                if random.random() > 0.5:
+                    home_team, away_team = team, opp
+                    team_home_games[team] += 1
+                else:
+                    home_team, away_team = opp, team
+                    team_home_games[opp] += 1
 
-        # non-conf opponents
-        nonconf_pool = [t for t in teams if t != team and conf_map.get(t) != team_conf]
-        n_nonconf = random.randint(nonconf_min, nonconf_max)
-        if len(nonconf_pool) == 0:
-            nonconf_opps = []
-        else:
-            if len(nonconf_pool) >= n_nonconf:
-                nonconf_opps = random.sample(nonconf_pool, n_nonconf)
+            # Assign day
+            if i < len(non_conf_games):
+                possible_days = list(range(1, 31))
             else:
-                nonconf_opps = [random.choice(nonconf_pool) for _ in range(n_nonconf)]
+                possible_days = list(range(31, 161))
 
-        # assign days and home/away
-        # non-conf on days 1..20
-        for opp in nonconf_opps:
-            day = random.randint(1, min(20, days_total))
-            home = random.choice([True, False])
-            home_team = team if home else opp
-            away_team = opp if home else team
-            schedule_rows.append({
-                "Day": int(day),
-                "Home": home_team,
-                "Away": away_team,
-                "Conference_Game": False,
-                "Team": team  # anchor team for reference (team's schedule)
-            })
+            assigned_day = None
+            random.shuffle(possible_days)
+            for day in possible_days:
+                if (
+                    day_games_count[day] < 50
+                    and team_games_count[team] < 40
+                    and team_games_count[opp] < 40
+                    and team_last_played[team] != day
+                    and team_last_played[opp] != day
+                ):
+                    assigned_day = day
+                    break
 
-        # conf games on days 21..days_total
-        for i, opp in enumerate(conf_opps):
-            day = random.randint(21, days_total)
-            home = random.choice([True, False])
-            home_team = team if home else opp
-            away_team = opp if home else team
-            schedule_rows.append({
-                "Day": int(day),
-                "Home": home_team,
-                "Away": away_team,
-                "Conference_Game": True,
-                "Team": team
-            })
+            if assigned_day:
+                schedule.append({
+                    "Day": assigned_day,
+                    "Home": home_team,
+                    "Away": away_team
+                })
+                day_games_count[assigned_day] += 1
+                team_games_count[team] += 1
+                team_games_count[opp] += 1
+                team_last_played[team] = assigned_day
+                team_last_played[opp] = assigned_day
 
-    schedule_df = pd.DataFrame(schedule_rows)
-    # normalize day type and sort
-    schedule_df = schedule_df.drop_duplicates(subset=["Day", "Home", "Away"]).reset_index(drop=True)
-    return schedule_df
+    return pd.DataFrame(schedule)
 
-schedule_df = build_randomized_schedule(df_all, days_total=100, conf_games=20)
+schedule_df = generate_schedule(all_stats)
 
-st.success(f"Random schedule generated: {len(schedule_df)} games total ({len(schedule_df['Home'].unique())} unique home teams)")
+# -----------------------------
+# Predict Outcomes
+# -----------------------------
+def predict_game(home, away):
+    # Placeholder — should match features from training
+    features = pd.DataFrame([{
+        "Team_FG%": all_stats.loc[all_stats["Team"] == home, "FG_PERC"].values[0],
+        "Team_PPG": all_stats.loc[all_stats["Team"] == home, "Points"].values[0],
+        "Opp_FG%": all_stats.loc[all_stats["Team"] == away, "FG_PERC"].values[0],
+        "Opp_PPG": all_stats.loc[all_stats["Team"] == away, "Points"].values[0]
+    }])
 
-# ---------------------------
-# Train a simple ML model on history (if possible)
-# ---------------------------
-@st.cache_data
-def train_predictor(history_df, teams_stats_df):
-    """
-    Tries to build features from history by merging team-level stats for home and away teams
-    Returns a pipeline (model) and the feature columns used
-    """
-    # Validate we have required columns
-    if not home_col or not away_col or not home_score_col or not away_score_col:
-        return None, None, "history_columns_missing"
+    prob = predictor_model.predict_proba(features)[0]
+    prediction = predictor_model.predict(features)[0]
 
-    hist = history_df.copy()
-    # Build a binary target 'home_win'
-    hist["home_score_num"] = pd.to_numeric(hist[home_score_col], errors="coerce")
-    hist["away_score_num"] = pd.to_numeric(hist[away_score_col], errors="coerce")
-    hist = hist.dropna(subset=["home_score_num", "away_score_num"]).copy()
-    hist["home_win"] = (hist["home_score_num"] > hist["away_score_num"]).astype(int)
+    return prediction, prob
 
-    # Merge team stats for home and away
-    # choose numeric columns from teams_stats_df as features
-    numeric_cols = teams_stats_df.select_dtypes(include=[np.number]).columns.tolist()
-    # remove columns that are obviously not team-level (e.g., index) keep 'Average Ranking' etc. If 'Teams' present drop it
-    numeric_cols = [c for c in numeric_cols if c != "index"]  # safe-guard
-    # prepare home and away features
-    home_feat = teams_stats_df.set_index("Teams")[numeric_cols].add_prefix("home_")
-    away_feat = teams_stats_df.set_index("Teams")[numeric_cols].add_prefix("away_")
+# -----------------------------
+# Streamlit Interface
+# -----------------------------
+st.title("Schedule Predictor")
 
-    # try to merge; detect column names in hist for home/away team labels
-    hist_merged = hist.merge(home_feat, left_on=home_col, right_index=True, how="left")
-    hist_merged = hist_merged.merge(away_feat, left_on=away_col, right_index=True, how="left")
+option = st.selectbox("View by:", ["Day", "Team", "Conference"])
 
-    # drop rows with missing features
-    feature_cols = [c for c in hist_merged.columns if c.startswith("home_") or c.startswith("away_")]
-    hist_merged = hist_merged.dropna(subset=feature_cols + ["home_win"])
+if option == "Day":
+    day_choice = st.slider("Select a Day", 1, 160, 1)
+    day_games = schedule_df[schedule_df["Day"] == day_choice]
+    st.write(day_games)
 
-    if hist_merged.shape[0] < 50:
-        # not enough rows to train reliably
-        return None, None, "not_enough_history"
+elif option == "Team":
+    team_choice = st.selectbox("Select a Team", sorted(all_stats["Team"].unique()))
+    team_games = schedule_df[(schedule_df["Home"] == team_choice) | (schedule_df["Away"] == team_choice)]
+    st.write(team_games)
 
-    X = hist_merged[feature_cols]
-    y = hist_merged["home_win"].astype(int)
-
-    # Simple pipeline
-    model = Pipeline([
-        ("scaler", StandardScaler()),
-        ("rf", RandomForestClassifier(n_estimators=200, random_state=0))
-    ])
-    model.fit(X, y)
-    return model, feature_cols, None
-
-model, feature_cols, train_err = train_predictor(df_hist, df_all)
-
-if train_err:
-    if train_err == "history_columns_missing":
-        st.warning("Historical dataset is missing expected Home/Away/score columns. ML predictor is disabled; predictions will use a baseline heuristic.")
-    elif train_err == "not_enough_history":
-        st.warning("Not enough merged historical rows to train a model. ML predictor is disabled; predictions will use a baseline heuristic.")
-else:
-    st.success("ML predictor trained on historical data.")
-
-# ---------------------------
-# Prediction function for schedule games
-# ---------------------------
-def predict_game(home, away, model, feature_cols, teams_stats_df):
-    # Baseline: if model missing, use simple heuristic using Average Ranking if available
-    if model is None or feature_cols is None:
-        # Try to use 'Average Ranking' (lower better)
-        if "Average Ranking" in teams_stats_df.columns:
-            try:
-                hr = float(teams_stats_df.loc[teams_stats_df["Teams"] == home, "Average Ranking"].values[0])
-                ar = float(teams_stats_df.loc[teams_stats_df["Teams"] == away, "Average Ranking"].values[0])
-                # translate to probability (simple)
-                diff = (ar - hr)  # if hr < ar team home is better => positive diff
-                prob_home = 1 / (1 + np.exp(-diff/50))  # temperature scaling
-                return float(prob_home)
-            except Exception:
-                return 0.5
-        return 0.5
-
-    # otherwise build feature vector
-    numeric_cols = [c for c in teams_stats_df.select_dtypes(include=[np.number]).columns.tolist()]
-    numeric_cols = [c for c in numeric_cols if c != "index"]
-    home_feats = teams_stats_df.set_index("Teams").loc[home, numeric_cols].add_prefix("home_")
-    away_feats = teams_stats_df.set_index("Teams").loc[away, numeric_cols].add_prefix("away_")
-    # create vector in feature_cols order
-    Xrow = pd.concat([home_feats, away_feats], axis=0)
-    Xrow = Xrow.reindex(feature_cols).fillna(0).values.reshape(1, -1)
-    prob = model.predict_proba(Xrow)[0,1]
-    return float(prob)
-
-# ---------------------------
-# Predict entire schedule
-# ---------------------------
-@st.cache_data
-def predict_schedule(schedule_df, model, feature_cols, teams_stats_df):
-    rows = []
-    for _, row in schedule_df.iterrows():
-        home = row["Home"]
-        away = row["Away"]
-        day = int(row["Day"])
-        prob_home = predict_game(home, away, model, feature_cols, teams_stats_df)
-        winner = home if prob_home >= 0.5 else away
-        rows.append({
-            "Day": day,
-            "Home": home,
-            "Away": away,
-            "Prob_Home_Win": prob_home,
-            "Pred_Winner": winner,
-            "Conference_Game": row.get("Conference_Game", False)
-        })
-    return pd.DataFrame(rows)
-
-pred_df = predict_schedule(schedule_df, model if model is not None else None, feature_cols, df_all)
-
-# ---------------------------
-# UI: selectors to view predictions
-# ---------------------------
-st.sidebar.header("View options")
-view_by = st.sidebar.selectbox("View by", ["Day", "Team", "Conference"])
-
-if view_by == "Day":
-    day_sel = st.sidebar.slider("Select Day", min_value=int(pred_df["Day"].min()), max_value=int(pred_df["Day"].max()), value=int(pred_df["Day"].min()))
-    view_df = pred_df[pred_df["Day"] == day_sel].copy()
-elif view_by == "Team":
-    team_sel = st.sidebar.selectbox("Select Team", sorted(df_all["Teams"].unique()))
-    view_df = pred_df[(pred_df["Home"] == team_sel) | (pred_df["Away"] == team_sel)].copy()
-else:  # Conference
-    conf_sel = st.sidebar.selectbox("Select Conference", sorted(df_all["Conference"].dropna().unique()))
-    # Find teams in conf
-    teams_in_conf = df_all[df_all["Conference"] == conf_sel]["Teams"].unique()
-    view_df = pred_df[(pred_df["Home"].isin(teams_in_conf)) | (pred_df["Away"].isin(teams_in_conf))].copy()
-
-st.header("Predicted Games")
-st.write(f"Showing {len(view_df)} games for filter: {view_by}")
-if view_df.empty:
-    st.info("No games found for this filter.")
-else:
-    # show sorted by day then prob
-    view_df = view_df.sort_values(["Day", "Prob_Home_Win"], ascending=[True, False]).reset_index(drop=True)
-    # add nice columns
-    view_df["Prob_Home_Win_pct"] = (view_df["Prob_Home_Win"]*100).round(1).astype(str) + "%"
-    view_df["Pred_Winner_Label"] = view_df["Pred_Winner"]
-    display_cols = ["Day", "Home", "Away", "Prob_Home_Win_pct", "Pred_Winner_Label", "Conference_Game"]
-    st.dataframe(view_df[display_cols], use_container_width=True)
-
-    # quick aggregate visual: probability histogram for the filtered set
-    fig = px.histogram(view_df, x="Prob_Home_Win", nbins=20, title="Distribution of Home Win Probabilities")
-    st.plotly_chart(fig, use_container_width=True)
-
-# ---------------------------
-# Export / download option
-# ---------------------------
-@st.cache_data
-def make_csv_bytes(df):
-    return df.to_csv(index=False).encode("utf-8")
-
-csv_bytes = make_csv_bytes(pred_df)
-st.download_button("Download full predictions CSV", data=csv_bytes, file_name="predicted_schedule.csv", mime="text/csv")
-
-
+elif option == "Conference":
+    conf_choice = st.selectbox("Select a Conference", sorted(all_stats["Conference"].unique()))
+    conf_teams = all_stats[all_stats["Conference"] == conf_choice]["Team"].unique()
+    conf_games = schedule_df[(schedule_df["Home"].isin(conf_teams)) | (schedule_df["Away"].isin(conf_teams))]
+    st.write(conf_games)
