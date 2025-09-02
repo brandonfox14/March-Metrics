@@ -77,3 +77,24 @@ schedule_df.sort_values(by=["Day"], inplace=True)
 schedule_df.to_csv("Data/Randomized_Schedule.csv", index=False)
 
 print("✅ Randomized schedule saved to Data/Randomized_Schedule.csv")
+
+import streamlit as st
+import pandas as pd
+import io
+
+# After generating schedule_df
+schedule_df = pd.DataFrame(schedule)
+schedule_df.sort_values(by=["Day"], inplace=True)
+
+# Save to CSV buffer
+csv_buffer = io.StringIO()
+schedule_df.to_csv(csv_buffer, index=False)
+csv_bytes = csv_buffer.getvalue().encode("utf-8")
+
+# Add download button in Streamlit
+st.download_button(
+    label="📥 Download Randomized Schedule CSV",
+    data=csv_bytes,
+    file_name="Randomized_Schedule.csv",
+    mime="text/csv"
+)
