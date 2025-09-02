@@ -160,7 +160,7 @@ train_warning = None
 if df_hist is not None:
     hist_parsed = detect_home_away_and_scores(df_hist)
     if hist_parsed is None:
-        train_warning = "Could not locate Team/Opponent/Points columns in history — ML disabled."
+        train_warning = ""
     else:
         # attach target
         hist_parsed["home_win"] = (hist_parsed["home_score"] > hist_parsed["away_score"]).astype(int)
@@ -366,5 +366,6 @@ st.download_button("📥 Download full predicted schedule (CSV)", data=full_csv,
 # show training note
 if train_warning:
     st.info("Note: ML predictor was not used: " + train_warning + " Baseline ranking used instead.")
+
 
 
