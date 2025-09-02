@@ -5,7 +5,10 @@ import random
 import os
 
 # ---------- CONFIG ----------
-ALL_STATS_PATH = "Data/All_stats.csv"   # adjust if needed
+def load_data():
+    return pd.read_csv("Data/All_stats.csv", encoding="latin1")
+
+ALL_STATS_PATH = load_data()
 OUT_CSV = "random_schedule.csv"
 NUM_DAYS = 160
 NONCONF_DAYS = range(1, 21)   # non-conference games: days 1..20
@@ -246,3 +249,4 @@ summary = {
 print("Saved randomized schedule to:", OUT_CSV)
 print("Summary:", summary)
 print(schedule_df.head(40).to_string(index=False))
+
