@@ -264,8 +264,8 @@ def avg_rank_for_keys(team_data, keys):
     return float(np.mean(ranks)) if ranks else np.nan
 
 def overall_avg_rank(team_data):
-    if "Average Ranking" in df.columns:
-        v = team_data.get("Average Ranking", np.nan)
+    if "STAT_STREN" in df.columns:
+        v = team_data.get("STAT_STREN", np.nan)
         if not pd.isna(v):
             try:
                 return float(v)
@@ -330,4 +330,5 @@ fig.update_layout(
 )
 
 st.plotly_chart(fig, use_container_width=True)
+
 
