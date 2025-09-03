@@ -65,14 +65,19 @@ def nav_card(title, desc, color, page_path):
     )
 
 with cols[0]:
-    nav_card("Team Breakdown", "Dive into detailed team stats and player impact.", "#E8F8F5", "Team_Breakdown")
+    nav_card("Team Breakdown", "Dive into detailed team stats and player impact.", "#E8F8F5", "1_Team_Breakdown")
 
 with cols[1]:
-    nav_card("Conference Projections", "See how conferences stack up against each other.", "#FDEDEC", "Conference_Projections")
+    nav_card("Team Comparison", "Compare stats across multiple teams side by side.", "#FDEDEC", "2_Team_Comparison")
 
 with cols[2]:
-    nav_card("Clutch Performance", "Who delivers when the game is on the line?", "#FEF9E7", "Clutch_Performance")
+    nav_card("Clutch Performance", "Who delivers when the game is on the line?", "#FEF9E7", "3_Clutch")
 
+# second row of cards for the other pages
+cols2 = st.columns(2)
 
-# The team being pulled from statistical strength to be white background and words black for the team because night mode messes it up
-# Properly connect the links to the different pages
+with cols2[0]:
+    nav_card("Schedule Predictor", "Explore randomized schedules and projections.", "#EBF5FB", "4_Schedule_Predictor")
+
+with cols2[1]:
+    nav_card("Players", "Analyze individual player stats and contributions.", "#F9EBEA", "5_Players")
