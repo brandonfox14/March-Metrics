@@ -148,14 +148,18 @@ def normalize_stat(val, stat_col):
 # Team selectors
 # -----------------------
 teams_sorted = sorted(df["Teams"].dropna().unique().tolist())
+
+# Pick top 2 teams by STAT_STREN for defaults
+top_two = df.nsmallest(2, "STAT_STREN")["Teams"].tolist()
+default_a = top_two[0] if len(top_two) > 0 else teams_sorted[0]
+default_b = top_two[1] if len(top_two) > 1 else teams_sorted[1]
+
 col1, col2 = st.columns(2)
 with col1:
-    team_a = st.selectbox("Select Left Team", teams_sorted, index=0)
+    team_a = st.selectbox("Select Left Team", teams_sorted, index=teams_sorted.index(default_a))
 with col2:
-    team_b = st.selectbox("Select Right Team", teams_sorted, index=1)
+    team_b = st.selectbox("Select Right Team", teams_sorted, index=teams_sorted.index(default_b))
 
-team_a_data = df[df["Teams"] == team_a].iloc[0]
-team_b_data = df[df["Teams"] == team_b].iloc[0]
 
 # -----------------------
 # Missing rank warnings
@@ -316,3 +320,4 @@ fig.update_layout(
 )
 
 st.plotly_chart(fig, use_container_width=True)
+
