@@ -95,7 +95,6 @@ def safe_format_value(col_key, val):
         v = float(val)
     except Exception:
         return str(val)
-    # percentages heuristics
     if ("PERC" in str(col_key).upper()) or ("%" in str(col_key)):
         return f"{v:.1%}" if v <= 1 else f"{v:.1f}%"
     if float(v).is_integer():
@@ -119,11 +118,10 @@ def color_by_rank(rank):
         r = int(rank)
     except Exception:
         return "rgba(200,200,200,0.6)"
-    # softer palette so numbers readable
     if r > 200:
-        return "rgba(255,140,120,0.8)"  # light red
+        return "rgba(255,140,120,0.8)"
     elif 151 <= r <= 200:
-        return "rgba(190,190,190,0.8)"  # grey
+        return "rgba(190,190,190,0.8)"
     else:
         green_val = int(70 + (150 - r) * 1.2)
         green_val = max(70, min(255, green_val))
@@ -145,64 +143,57 @@ def normalize_stat(val, stat_col):
         return 0.5
 
 # -----------------------
-# Missing rank collector (defined before use)
+# Missing rank collector
 # -----------------------
 def collect_missing_ranks(team_data):
-    """
-    Returns list of stat names where:
-      - a rank mapping exists in rank_overrides, and
-      - that mapped rank column is either missing from df OR is NaN for this team
-    (We only warn where a mapping exists; unmapped stats are handled in UI.)
-    """
     missing = []
     for group in stat_groups.values():
         for stat in group:
             rc = get_rank_col(stat)
             if rc:
-                # if rank mapping exists, check column presence and value
                 if rc not in df.columns:
                     missing.append(stat)
                 else:
                     val = team_data.get(rc, np.nan)
                     if pd.isna(val):
                         missing.append(stat)
-            # if rc is None we do not add to missing — UI will show "No rank mapping defined"
     return sorted(set(missing))
 
 # -----------------------
-# Team selectors (default to top Games (Dropping D2 matches) in SEC and Big Ten)
+# Team selectors (SEC vs Big Ten, max games)
 # -----------------------
 teams_sorted = sorted(df["Teams"].dropna().unique().tolist())
 
-# Default fallbacks (alphabetical first two)
 default_a = teams_sorted[0]
 default_b = teams_sorted[1] if len(teams_sorted) > 1 else teams_sorted[0]
 
-if "Games (Dropping D2 matches)" in df.columns and "Conference" in df.columns:
+if "Conference" in df.columns and "Games (Dropping D2 matches)" in df.columns:
     try:
-        # SEC top team
-        sec_teams = df[df["Conference"].str.upper() == "SEC"].dropna(subset=["Games (Dropping D2 matches)"])
-        bigten_teams = df[df["Conference"].str.upper() == "BIG TEN"].dropna(subset=["Games (Dropping D2 matches)"])
+        sec_team = (
+            df[df["Conference"].str.upper() == "SEC"]
+            .sort_values("Games (Dropping D2 matches)", ascending=False)
+            .iloc[0]["Teams"]
+        )
+        big10_team = (
+            df[df["Conference"].str.upper().isin(["BIG TEN", "B1G"])]
+            .sort_values("Games (Dropping D2 matches)", ascending=False)
+            .iloc[0]["Teams"]
+        )
+        if pd.notna(sec_team):
+            default_a = sec_team
+        if pd.notna(big10_team):
+            default_b = big10_team
+    except Exception:
+        pass
 
-        if not sec_teams.empty:
-            sec_top = sec_teams.sort_values("Games (Dropping D2 matches)", ascending=False).iloc[0]["Teams"]
-            if sec_top in teams_sorted:
-                default_a = sec_top
-
-        if not bigten_teams.empty:
-            bigten_top = bigten_teams.sort_values("Games (Dropping D2 matches)", ascending=False).iloc[0]["Teams"]
-            if bigten_top in teams_sorted:
-                default_b = bigten_top
-
-    except Exception as e:
-        st.warning(f"Default team selection failed, falling back to alphabetical. Error: {e}")
-
-# Streamlit selectors
 col1, col2 = st.columns(2)
 with col1:
     team_a = st.selectbox("Select Left Team", teams_sorted, index=teams_sorted.index(default_a))
 with col2:
     team_b = st.selectbox("Select Right Team", teams_sorted, index=teams_sorted.index(default_b))
+
+team_a_data = df[df["Teams"] == team_a].iloc[0]
+team_b_data = df[df["Teams"] == team_b].iloc[0]
 
 # -----------------------
 # Missing rank warnings
@@ -222,7 +213,6 @@ for group_name, stats in stat_groups.items():
     st.markdown(f"### {group_name}")
     for stat in stats:
         if stat not in df.columns:
-            # skip but show subtle note
             st.markdown(f"*Note: '{stat}' column missing from dataset — skipped.*")
             continue
 
@@ -241,28 +231,22 @@ for group_name, stats in stat_groups.items():
 
         left_col, center_col, right_col = st.columns([4, 2, 4])
         with left_col:
-            left_html = (
+            st.markdown(
                 f"<div style='display:flex; justify-content:flex-end; align-items:center;'>"
                 f"<div style='width:60%; background:{color_a}; padding:6px; border-radius:6px; "
-                f"text-align:right;'>"
-                f"{safe_format_value(stat, val_a)}</div>"
-                f"</div>"
-            )
-            st.markdown(left_html, unsafe_allow_html=True)
+                f"text-align:right;'>{safe_format_value(stat, val_a)}</div>"
+                f"</div>", unsafe_allow_html=True)
         with center_col:
             st.markdown(f"**{stat}**")
         with right_col:
-            right_html = (
+            st.markdown(
                 f"<div style='display:flex; justify-content:flex-start; align-items:center;'>"
                 f"<div style='width:60%; background:{color_b}; padding:6px; border-radius:6px; "
-                f"text-align:left;'>"
-                f"{safe_format_value(stat, val_b)}</div>"
-                f"</div>"
-            )
-            st.markdown(right_html, unsafe_allow_html=True)
+                f"text-align:left;'>{safe_format_value(stat, val_b)}</div>"
+                f"</div>", unsafe_allow_html=True)
 
 # -----------------------
-# Radar chart (averaged ranks per category)
+# Radar chart
 # -----------------------
 st.subheader("Team Radar: Average Rankings")
 
@@ -277,12 +261,9 @@ def avg_rank_for_keys(team_data, keys):
                     ranks.append(float(v))
                 except Exception:
                     pass
-    if not ranks:
-        return np.nan
-    return float(np.mean(ranks))
+    return float(np.mean(ranks)) if ranks else np.nan
 
 def overall_avg_rank(team_data):
-    # prefer explicit "Average Ranking" column if available
     if "Average Ranking" in df.columns:
         v = team_data.get("Average Ranking", np.nan)
         if not pd.isna(v):
@@ -290,7 +271,6 @@ def overall_avg_rank(team_data):
                 return float(v)
             except Exception:
                 pass
-    # fallback: mean of all available mapped ranks
     all_keys = [s for group in stat_groups.values() for s in group]
     ranks = []
     for k in all_keys:
@@ -333,7 +313,6 @@ fig.add_trace(go.Scatterpolar(
     name=team_b
 ))
 
-# invert radial axis so 1 is outer, fallback max rank = max observed rank or 365
 all_rank_cols = [c for c in rank_overrides.values() if c in df.columns]
 max_rank_observed = int(np.nanmax(df[all_rank_cols].apply(pd.to_numeric, errors="coerce").max(skipna=True))) if all_rank_cols else 365
 max_rank = max(365, max_rank_observed)
@@ -351,4 +330,3 @@ fig.update_layout(
 )
 
 st.plotly_chart(fig, use_container_width=True)
-
