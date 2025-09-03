@@ -18,17 +18,18 @@ with col2:
     st.image("Assets/FullLogo.png", use_container_width=True)
 
 # --- HIGHLIGHTED TEAM ---
-best_team = df.loc[df["Average Ranking"].idxmin()]
+# Use Statistical Strength instead of Average Ranking
+best_team = df.loc[df["Statistical Strength"].idxmax()]  # Higher strength is better
 
 st.subheader("Highlighted Team")
 st.markdown(
     f"""
-    <div style="padding:15px; border-radius:12px; background-color:#f5f5f5; 
-                box-shadow:0px 4px 10px rgba(0,0,0,0.15); text-align:center;">
-        <h2 style="margin:0;">{best_team['Teams']}</h2>
-        <p style="margin:5px 0;">Wins: {best_team['Wins']} | Losses: {best_team['Losses']}</p>
+    <div style="padding:15px; border-radius:12px; background-color:#ffffff; 
+                box-shadow:0px 4px 10px rgba(0,0,0,0.15); text-align:center; color:#000000;">
+        <h2 style="margin:0; color:#000000;">{best_team['Teams']}</h2>
+        <p style="margin:5px 0; color:#000000;">Wins: {best_team['Wins']} | Losses: {best_team['Losses']}</p>
         <p style="margin:5px 0; font-weight:bold; color:#2E86C1;">
-            Avg Ranking: {best_team['Average Ranking']}
+            Statistical Strength: {best_team['Statistical Strength']}
         </p>
         <p style="margin:5px 0; font-weight:bold; color:#117A65;">
             Avg Scoring Margin: {best_team['SM']}
@@ -51,11 +52,13 @@ cols = st.columns(3)
 with cols[0]:
     st.markdown(
         """
-        <div style="padding:15px; border-radius:12px; background-color:#E8F8F5; 
-                    box-shadow:0px 4px 8px rgba(0,0,0,0.1); text-align:center;">
-            <h3>Team Breakdown</h3>
-            <p>Dive into detailed team stats and player impact.</p>
-        </div>
+        <a href="Team_Breakdown" target="_self" style="text-decoration:none;">
+            <div style="padding:15px; border-radius:12px; background-color:#E8F8F5; 
+                        box-shadow:0px 4px 8px rgba(0,0,0,0.1); text-align:center;">
+                <h3 style="color:#000000;">Team Breakdown</h3>
+                <p style="color:#000000;">Dive into detailed team stats and player impact.</p>
+            </div>
+        </a>
         """,
         unsafe_allow_html=True,
     )
@@ -63,11 +66,13 @@ with cols[0]:
 with cols[1]:
     st.markdown(
         """
-        <div style="padding:15px; border-radius:12px; background-color:#FDEDEC; 
-                    box-shadow:0px 4px 8px rgba(0,0,0,0.1); text-align:center;">
-            <h3>Conference Projections</h3>
-            <p>See how conferences stack up against each other.</p>
-        </div>
+        <a href="Conference_Projections" target="_self" style="text-decoration:none;">
+            <div style="padding:15px; border-radius:12px; background-color:#FDEDEC; 
+                        box-shadow:0px 4px 8px rgba(0,0,0,0.1); text-align:center;">
+                <h3 style="color:#000000;">Conference Projections</h3>
+                <p style="color:#000000;">See how conferences stack up against each other.</p>
+            </div>
+        </a>
         """,
         unsafe_allow_html=True,
     )
@@ -75,17 +80,13 @@ with cols[1]:
 with cols[2]:
     st.markdown(
         """
-        <div style="padding:15px; border-radius:12px; background-color:#FEF9E7; 
-                    box-shadow:0px 4px 8px rgba(0,0,0,0.1); text-align:center;">
-            <h3>Clutch Performance</h3>
-            <p>Who delivers when the game is on the line?</p>
-        </div>
+        <a href="Clutch_Performance" target="_self" style="text-decoration:none;">
+            <div style="padding:15px; border-radius:12px; background-color:#FEF9E7; 
+                        box-shadow:0px 4px 8px rgba(0,0,0,0.1); text-align:center;">
+                <h3 style="color:#000000;">Clutch Performance</h3>
+                <p style="color:#000000;">Who delivers when the game is on the line?</p>
+            </div>
+        </a>
         """,
         unsafe_allow_html=True,
     )
-
-
-
-# Change average ranking to Statistical Strength
-# Standardize that to be white and words black for the team because night mode messes it up
-# Properly connect the links
