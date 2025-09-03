@@ -53,7 +53,7 @@ rank_overrides = {
     "FG3_PERC": "FG3_PERC_Rank",
     "FG3M/G": "FG3M/G_Rank",
     "FT_PERC": "FT_PERC_Rank",
-    "FTM/G": "FTM/G_Rank",
+    "FTM/G": "FTM/G_RANK",
 
     # defense
     "OPP_PPG": "OPP_PPG_RANK",
@@ -83,8 +83,8 @@ rank_overrides = {
     "PTS_OFF_TURN": "PTS_OFF_TURN_RANK",
     "FST_BREAK": "FST_BREAK_RANK",
     "PTS_PAINT": "PTS_PAINT_RANK",
-    "% of Points from 3": "% of Points from 3_Rank",
-    "% of shots taken from 3": "% of shots taken from 3_Rank",
+    "% of Points from 3": "% of Points from 3_RANK",
+    "% of shots taken from 3": "% of shots taken from 3_RANK",
 }
 
 def get_rank_col(key: str):
@@ -271,3 +271,4 @@ build_section_chart(offense_cols, "Offensive Statistics")
 build_section_chart(defense_cols, "Defensive Statistics")
 build_section_chart(extra_cols, "Extra Statistical Values")
 build_section_chart(scoring_cols, "Scoring Statistics")
+
