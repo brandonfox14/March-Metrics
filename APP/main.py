@@ -18,7 +18,7 @@ with col2:
     st.image("Assets/FullLogo.png", use_container_width=True)
 
 # --- HIGHLIGHTED TEAM ---
-best_team = df.loc[df["Average Ranking"].idxmin()]
+best_team = df.loc[df["Statistical Strength"].idxmin()]
 
 st.subheader("Highlighted Team")
 st.markdown(
@@ -28,7 +28,7 @@ st.markdown(
         <h2 style="margin:0;">{best_team['Teams']}</h2>
         <p style="margin:5px 0;">Wins: {best_team['Wins']} | Losses: {best_team['Losses']}</p>
         <p style="margin:5px 0; font-weight:bold; color:#2E86C1;">
-            Avg Ranking: {best_team['Average Ranking']}
+            Avg Ranking: {best_team['Strength of Statistical Ranking']}
         </p>
         <p style="margin:5px 0; font-weight:bold; color:#117A65;">
             Avg Scoring Margin: {best_team['SM']}
