@@ -1,3 +1,4 @@
+# APP/pages/2_Team_Comparison.py
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -8,23 +9,36 @@ import plotly.graph_objects as go
 # -----------------------
 @st.cache_data
 def load_data():
-    return pd.read_csv("Data/All_stats.csv", encoding="latin1")
+    df = pd.read_csv("Data/All_stats.csv", encoding="latin1")
+    df.columns = df.columns.str.strip()  # clean headers
+    return df
 
 df = load_data()
 
 # -----------------------
-# Explicit rank mapping (use for all stats)
+# Rank mapping (adjustable)
 # -----------------------
 rank_overrides = {
-    "Points": "Points_Rank",
+    # offense
+    "Points": "Points_RANK",
     "FG_PERC": "FG_PERC_Rank",
     "FGM/G": "FGM/G_Rank",
     "FG3_PERC": "FG3_PERC_Rank",
     "FG3M/G": "FG3M/G_Rank",
     "FT_PERC": "FT_PERC_Rank",
     "FTM/G": "FTM/G_Rank",
-    "% of Points from 3": "% of Points from 3_Rank",
-    "% of shots taken from 3": "% of shots taken from 3_Rank",
+
+    # defense
+    "OPP_PPG": "OPP_PPG_RANK",
+    "OPP_FG_PERC": "OPP_FG_PERC_Rank",
+    "OPP_FGM/G": "OPP_FGM/G_Rank",
+    "OPP_FG3_PERC": "OPP_FG3_PERC_Rank",
+    "OPP_FG3M/G": "OPP_FG3M/G_Rank",
+    "OPP_% of Points from 3": "OPP_% of Points from 3 rank",
+    "OPP_% of shots taken from 3": "OPP_% of shots taken from 3 Rank",
+    "OPP_OReb": "OPP_OReb_RANK",
+
+    # extra statistical values (rebounds, fouls etc.)
     "OReb": "OReb Rank",
     "OReb chances": "OReb chances Rank",
     "DReb": "DReb Rank",
@@ -36,35 +50,102 @@ rank_overrides = {
     "STL": "STL Rank",
     "PF": "PF_Rank",
     "Foul Differential": "Foul Differential Rank",
+
+    # scoring statistics
     "Extra Scoring Chances": "Extra Scoring Chances Rank",
     "PTS_OFF_TURN": "PTS_OFF_TURN_RANK",
     "FST_BREAK": "FST_BREAK_RANK",
     "PTS_PAINT": "PTS_PAINT_RANK",
-    "OPP_PPG": "OPP_PPG_RANK",
-    "OPP_FG_PERC": "OPP_FG_PERC_Rank",
-    "OPP_FGM/G": "OPP_FGM/G_Rank",
-    "OPP_FG3_PERC": "OPP_FG3_PERC_Rank",
-    "OPP_FG3M/G": "OPP_FG3M/G_Rank",
-    "OPP_% of Points from 3": "OPP_% of Points from 3 rank",
-    "OPP_% of shots taken from 3": "OPP_% of shots taken from 3 Rank",
-    "OPP_OReb": "OPP_OReb_RANK",
+    "% of Points from 3": "% of Points from 3_Rank",
+    "% of shots taken from 3": "% of shots taken from 3_Rank",
 }
 
+def get_rank_col(key: str):
+    return rank_overrides.get(key)
+
 # -----------------------
-# Define stat groups
+# Stat groups (reorganized)
 # -----------------------
 stat_groups = {
-    "Offense": ["Points","FG_PERC","FGM/G","FG3_PERC","FG3M/G","% of Points from 3",
-                "% of shots taken from 3","FT_PERC","FTM/G"],
-    "Defense": ["OPP_PPG","OPP_FG_PERC","OPP_FGM/G","OPP_FG3_PERC","OPP_FG3M/G",
-                "OPP_% of Points from 3","OPP_% of shots taken from 3","OPP_OReb"],
-    "Rebounds/AST/TO/STL": ["OReb","OReb chances","DReb","Rebounds","Rebound Rate",
-                             "AST","AST/FGM","TO","STL"],
-    "Extras": ["Extra Scoring Chances","PTS_OFF_TURN","FST_BREAK","PTS_PAINT","PF","Foul Differential"]
+    "Offense": [
+        "Points","FG_PERC","FGM/G","FG3_PERC","FG3M/G","FT_PERC","FTM/G"
+    ],
+    "Defense": [
+        "OPP_PPG","OPP_FG_PERC","OPP_FGM/G","OPP_FG3_PERC","OPP_FG3M/G",
+        "OPP_% of Points from 3","OPP_% of shots taken from 3","OPP_OReb"
+    ],
+    "Extra Statistical Values": [
+        "OReb","OReb chances","DReb","Rebounds","Rebound Rate",
+        "AST","AST/FGM","TO","STL","PF","Foul Differential"
+    ],
+    "Scoring Statistics": [
+        "Extra Scoring Chances","PTS_OFF_TURN","FST_BREAK","PTS_PAINT",
+        "% of Points from 3","% of shots taken from 3"
+    ]
 }
 
 # -----------------------
-# Team Selection
+# Helpers
+# -----------------------
+def safe_format_value(col_key, val):
+    if pd.isna(val):
+        return "N/A"
+    try:
+        v = float(val)
+    except Exception:
+        return str(val)
+    # percentages heuristics
+    if ("PERC" in str(col_key).upper()) or ("%" in str(col_key)):
+        return f"{v:.1%}" if v <= 1 else f"{v:.1f}%"
+    if float(v).is_integer():
+        return str(int(v))
+    return f"{v:.1f}"
+
+def safe_format_rank(val):
+    if val is None:
+        return "No rank mapping defined"
+    if pd.isna(val) or val == "N/A":
+        return "Not enough games played for ranking"
+    try:
+        return int(float(val))
+    except Exception:
+        return val
+
+def color_by_rank(rank):
+    if pd.isna(rank):
+        return "rgba(200,200,200,0.6)"
+    try:
+        r = int(rank)
+    except Exception:
+        return "rgba(200,200,200,0.6)"
+    # softer palette so numbers readable
+    if r > 200:
+        return f"rgba(255,140,120,0.8)"  # light red
+    elif 151 <= r <= 200:
+        return f"rgba(190,190,190,0.8)"  # grey
+    else:
+        # greens scale
+        green_val = int(70 + (150 - r) * 1.2)
+        green_val = max(70, min(255, green_val))
+        return f"rgba(60,{green_val},60,0.85)"
+
+def normalize_stat(val, stat_col):
+    if stat_col not in df.columns:
+        return 0.5
+    col = pd.to_numeric(df[stat_col], errors="coerce")
+    if col.dropna().empty:
+        return 0.5
+    mn = col.min(skipna=True)
+    mx = col.max(skipna=True)
+    if pd.isna(val) or mn == mx or pd.isna(mn) or pd.isna(mx):
+        return 0.5
+    try:
+        return float((val - mn) / (mx - mn))
+    except Exception:
+        return 0.5
+
+# -----------------------
+# Team selectors
 # -----------------------
 teams_sorted = sorted(df["Teams"].dropna().unique().tolist())
 col1, col2 = st.columns(2)
@@ -73,124 +154,165 @@ with col1:
 with col2:
     team_b = st.selectbox("Select Right Team", teams_sorted, index=1)
 
-team_a_data = df[df["Teams"]==team_a].iloc[0]
-team_b_data = df[df["Teams"]==team_b].iloc[0]
+team_a_data = df[df["Teams"] == team_a].iloc[0]
+team_b_data = df[df["Teams"] == team_b].iloc[0]
 
 # -----------------------
-# Pop-up for missing ranks
+# Missing rank warnings
 # -----------------------
-missing_ranks_a = [stat for group in stat_groups.values() for stat in group
-                   if pd.isna(team_a_data.get(rank_overrides[stat], np.nan))]
-missing_ranks_b = [stat for group in stat_groups.values() for stat in group
-                   if pd.isna(team_b_data.get(rank_overrides[stat], np.nan))]
+def collect_missing_ranks(team_data):
+    missing = []
+    for group in stat_groups.values():
+        for stat in group:
+            rank_col = get_rank_col(stat)
+            if rank_col:
+                if rank_col not in df.columns or pd.isna(team_data.get(rank_col, np.nan)):
+                    missing.append(stat)
+            else:
+                missing.append(stat)
+    return sorted(set(missing))
 
+missing_ranks_a = collect_missing_ranks(team_a_data)
+missing_ranks_b = collect_missing_ranks(team_b_data)
 if missing_ranks_a:
-    st.warning(f"⚠️ {team_a} has not played enough games for rankings in: {', '.join(missing_ranks_a)}")
+    st.warning(f"⚠️ {team_a} missing rank data for: {', '.join(missing_ranks_a)}")
 if missing_ranks_b:
-    st.warning(f"⚠️ {team_b} has not played enough games for rankings in: {', '.join(missing_ranks_b)}")
+    st.warning(f"⚠️ {team_b} missing rank data for: {', '.join(missing_ranks_b)}")
 
 # -----------------------
-# Helper Functions
-# -----------------------
-def color_by_rank(rank):
-    if pd.isna(rank):
-        return "lightgrey"
-    rank = int(rank)
-    if rank > 200:
-        return f"rgba(255,100,100,0.8)"  # lighter red
-    elif 151 <= rank <= 200:
-        return f"rgba(180,180,180,0.7)"  # grey
-    else:
-        green_val = int(50 + (150 - rank) * 1.4)
-        return f"rgba(0,{green_val},0,0.8)"
-
-def normalize_stat(val, stat_col):
-    min_val = df[stat_col].min()
-    max_val = df[stat_col].max()
-    if pd.isna(val) or min_val==max_val:
-        return 0.5
-    return (val - min_val)/(max_val - min_val)
-
-# -----------------------
-# Side-by-Side Bars
+# Side-by-side bar UI
 # -----------------------
 st.subheader("Team Comparison: Stats")
 for group_name, stats in stat_groups.items():
     st.markdown(f"### {group_name}")
     for stat in stats:
-        rank_col = rank_overrides[stat]
-        val_a = team_a_data.get(stat,np.nan)
-        val_b = team_b_data.get(stat,np.nan)
-        rank_a = team_a_data.get(rank_col,np.nan)
-        rank_b = team_b_data.get(rank_col,np.nan)
+        if stat not in df.columns:
+            # skip but show subtle note
+            st.markdown(f"*Note: '{stat}' column missing from dataset — skipped.*")
+            continue
+
+        rank_col = get_rank_col(stat)
+        rank_a = team_a_data.get(rank_col, np.nan) if rank_col else np.nan
+        rank_b = team_b_data.get(rank_col, np.nan) if rank_col else np.nan
+
+        val_a = team_a_data.get(stat, np.nan)
+        val_b = team_b_data.get(stat, np.nan)
+
         norm_a = normalize_stat(val_a, stat)
         norm_b = normalize_stat(val_b, stat)
+
         color_a = color_by_rank(rank_a)
         color_b = color_by_rank(rank_b)
-        
-        col_left, col_center, col_right = st.columns([4,2,4])
-        with col_left:
-            st.markdown(f"<div style='text-align:right; background-color:{color_a}; width:{int(norm_a*100)}%; padding:5px; border-radius:5px;'>{val_a}</div>", unsafe_allow_html=True)
-        with col_center:
-            st.markdown(f"**{stat}**", unsafe_allow_html=True)
-        with col_right:
-            st.markdown(f"<div style='text-align:left; background-color:{color_b}; width:{int(norm_b*100)}%; padding:5px; border-radius:5px;'>{val_b}</div>", unsafe_allow_html=True)
+
+        left_col, center_col, right_col = st.columns([4, 2, 4])
+        with left_col:
+            left_html = (
+                f"<div style='display:flex; justify-content:flex-end; align-items:center;'>"
+                f"<div style='width:60%; background:{color_a}; padding:6px; border-radius:6px; "
+                f"text-align:right;'>"
+                f"{safe_format_value(stat, val_a)}</div>"
+                f"</div>"
+            )
+            st.markdown(left_html, unsafe_allow_html=True)
+        with center_col:
+            st.markdown(f"**{stat}**")
+        with right_col:
+            right_html = (
+                f"<div style='display:flex; justify-content:flex-start; align-items:center;'>"
+                f"<div style='width:60%; background:{color_b}; padding:6px; border-radius:6px; "
+                f"text-align:left;'>"
+                f"{safe_format_value(stat, val_b)}</div>"
+                f"</div>"
+            )
+            st.markdown(right_html, unsafe_allow_html=True)
 
 # -----------------------
-# Radar Chart (Simplified, inverted axis)
+# Radar chart (averaged ranks per category)
 # -----------------------
 st.subheader("Team Radar: Average Rankings")
-radar_categories = ["Overall","Offense","Defense","Rebounds/AST/TO/STL","Extras"]
 
-def avg_rank(team_data, stats_list):
-    # Just take the actual rank values directly
-    ranks = [team_data[s] for s in stats_list if not pd.isna(team_data[s])]
-    return np.mean(ranks) if ranks else np.nan
+# helper to compute average rank for a list of stat keys
+def avg_rank_for_keys(team_data, keys):
+    ranks = []
+    for k in keys:
+        rc = get_rank_col(k)
+        if rc and rc in df.columns:
+            v = team_data.get(rc, np.nan)
+            try:
+                if not pd.isna(v):
+                    ranks.append(float(v))
+            except Exception:
+                pass
+    if not ranks:
+        return np.nan
+    return float(np.mean(ranks))
 
-# Compute average rankings for each category
-overall_a = team_a_data["Average Ranking"]
-overall_b = team_b_data["Average Ranking"]
+# categories & keys (use the same groups)
+radar_categories = ["Overall", "Offense", "Defense", "Extra Statistical Values", "Scoring Statistics"]
 
-offense_a = avg_rank(team_a_data, stat_groups["Offense"])
-defense_a = avg_rank(team_a_data, stat_groups["Defense"])
-reb_a = avg_rank(team_a_data, stat_groups["Rebounds/AST/TO/STL"])
-extras_a = avg_rank(team_a_data, stat_groups["Extras"])
+# Overall: prefer explicit "Average Ranking" column, fallback to mean of all available ranks
+def overall_avg_rank(team_data):
+    if "Average Ranking" in df.columns:
+        v = team_data.get("Average Ranking", np.nan)
+        try:
+            if not pd.isna(v):
+                return float(v)
+        except Exception:
+            pass
+    # fallback: mean of all mapped ranks present
+    all_keys = [s for group in stat_groups.values() for s in group]
+    ranks = []
+    for k in all_keys:
+        rc = get_rank_col(k)
+        if rc and rc in df.columns:
+            v = team_data.get(rc, np.nan)
+            if not pd.isna(v):
+                try:
+                    ranks.append(float(v))
+                except Exception:
+                    pass
+    return float(np.mean(ranks)) if ranks else np.nan
 
-offense_b = avg_rank(team_b_data, stat_groups["Offense"])
-defense_b = avg_rank(team_b_data, stat_groups["Defense"])
-reb_b = avg_rank(team_b_data, stat_groups["Rebounds/AST/TO/STL"])
-extras_b = avg_rank(team_b_data, stat_groups["Extras"])
+# compute values
+overall_a = overall_avg_rank(team_a_data)
+overall_b = overall_avg_rank(team_b_data)
 
-# Build radar chart
+off_a = avg_rank_for_keys(team_a_data, stat_groups["Offense"])
+def_a = avg_rank_for_keys(team_a_data, stat_groups["Defense"])
+extra_a = avg_rank_for_keys(team_a_data, stat_groups["Extra Statistical Values"])
+score_a = avg_rank_for_keys(team_a_data, stat_groups["Scoring Statistics"])
+
+off_b = avg_rank_for_keys(team_b_data, stat_groups["Offense"])
+def_b = avg_rank_for_keys(team_b_data, stat_groups["Defense"])
+extra_b = avg_rank_for_keys(team_b_data, stat_groups["Extra Statistical Values"])
+score_b = avg_rank_for_keys(team_b_data, stat_groups["Scoring Statistics"])
+
 fig = go.Figure()
 fig.add_trace(go.Scatterpolar(
-    r=[overall_a, offense_a, defense_a, reb_a, extras_a],
+    r=[overall_a, off_a, def_a, extra_a, score_a],
     theta=radar_categories,
     fill='toself',
     name=team_a
 ))
 fig.add_trace(go.Scatterpolar(
-    r=[overall_b, offense_b, defense_b, reb_b, extras_b],
+    r=[overall_b, off_b, def_b, extra_b, score_b],
     theta=radar_categories,
     fill='toself',
     name=team_b
 ))
 
-# Invert radial axis: best (1) on outside, worst (365) on inside
+# invert radial axis so 1 is outer, 365 inner (safe default range uses 365)
+max_rank = 365
 fig.update_layout(
     polar=dict(
         radialaxis=dict(
             visible=True,
-            range=[365, 1],  # invert axis
+            range=[max_rank, 1],
             tickvals=[50,100,150,200,250,300,350]
         )
     ),
-    showlegend=True
+    showlegend=True,
+    title="Average Category Rankings (1 = Best, outer circle)"
 )
 
 st.plotly_chart(fig, use_container_width=True)
-
-
-
-# need to fix the chart at the bottom I also want to add steal to turnover ratio, and I need to adjust the groupings of stats.
-# also fix names, need them to be readable not abreviations. 
