@@ -18,18 +18,17 @@ with col2:
     st.image("Assets/FullLogo.png", use_container_width=True)
 
 # --- HIGHLIGHTED TEAM ---
-# Pick team with *lowest* Statistical Strength value
-best_team = df.loc[df["Statistical StrengthÊ"].idxmin()]
+best_team = df.loc[df["Average Ranking"].idxmin()]
 
 st.subheader("Highlighted Team")
 st.markdown(
     f"""
-    <div style="padding:15px; border-radius:12px; background-color:#FFFFFF; 
-                box-shadow:0px 4px 10px rgba(0,0,0,0.15); text-align:center; color:#000000;">
-        <h2 style="margin:0; color:#000000;">{best_team['Teams']}</h2>
-        <p style="margin:5px 0; color:#000000;">Wins: {best_team['Wins']} | Losses: {best_team['Losses']}</p>
+    <div style="padding:15px; border-radius:12px; background-color:#f5f5f5; 
+                box-shadow:0px 4px 10px rgba(0,0,0,0.15); text-align:center;">
+        <h2 style="margin:0;">{best_team['Teams']}</h2>
+        <p style="margin:5px 0;">Wins: {best_team['Wins']} | Losses: {best_team['Losses']}</p>
         <p style="margin:5px 0; font-weight:bold; color:#2E86C1;">
-            Statistical Strength: {best_team['Statistical Strength']}
+            Avg Ranking: {best_team['Average Ranking']}
         </p>
         <p style="margin:5px 0; font-weight:bold; color:#117A65;">
             Avg Scoring Margin: {best_team['SM']}
@@ -52,13 +51,11 @@ cols = st.columns(3)
 with cols[0]:
     st.markdown(
         """
-        <a href="/Team_Breakdown" target="_self" style="text-decoration:none;">
-            <div style="padding:15px; border-radius:12px; background-color:#E8F8F5; 
-                        box-shadow:0px 4px 8px rgba(0,0,0,0.1); text-align:center; color:black;">
-                <h3>Team Breakdown</h3>
-                <p>Dive into detailed team stats and player impact.</p>
-            </div>
-        </a>
+        <div style="padding:15px; border-radius:12px; background-color:#E8F8F5; 
+                    box-shadow:0px 4px 8px rgba(0,0,0,0.1); text-align:center;">
+            <h3>Team Breakdown</h3>
+            <p>Dive into detailed team stats and player impact.</p>
+        </div>
         """,
         unsafe_allow_html=True,
     )
@@ -66,13 +63,11 @@ with cols[0]:
 with cols[1]:
     st.markdown(
         """
-        <a href="/Conference_Projections" target="_self" style="text-decoration:none;">
-            <div style="padding:15px; border-radius:12px; background-color:#FDEDEC; 
-                        box-shadow:0px 4px 8px rgba(0,0,0,0.1); text-align:center; color:black;">
-                <h3>Conference Projections</h3>
-                <p>See how conferences stack up against each other.</p>
-            </div>
-        </a>
+        <div style="padding:15px; border-radius:12px; background-color:#FDEDEC; 
+                    box-shadow:0px 4px 8px rgba(0,0,0,0.1); text-align:center;">
+            <h3>Conference Projections</h3>
+            <p>See how conferences stack up against each other.</p>
+        </div>
         """,
         unsafe_allow_html=True,
     )
@@ -80,13 +75,17 @@ with cols[1]:
 with cols[2]:
     st.markdown(
         """
-        <a href="/Clutch_Performance" target="_self" style="text-decoration:none;">
-            <div style="padding:15px; border-radius:12px; background-color:#FEF9E7; 
-                        box-shadow:0px 4px 8px rgba(0,0,0,0.1); text-align:center; color:black;">
-                <h3>Clutch Performance</h3>
-                <p>Who delivers when the game is on the line?</p>
-            </div>
-        </a>
+        <div style="padding:15px; border-radius:12px; background-color:#FEF9E7; 
+                    box-shadow:0px 4px 8px rgba(0,0,0,0.1); text-align:center;">
+            <h3>Clutch Performance</h3>
+            <p>Who delivers when the game is on the line?</p>
+        </div>
         """,
         unsafe_allow_html=True,
     )
+
+
+
+# Change average ranking to Statistical Strength (there is now a column "Statistical Strength"
+# Standardize the team being pulled from statistical strength to be white background and words black for the team because night mode messes it up
+# Properly connect the links to the different pages
