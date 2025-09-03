@@ -18,7 +18,7 @@ with col2:
     st.image("Assets/FullLogo.png", use_container_width=True)
 
 # --- HIGHLIGHTED TEAM ---
-best_team = df.loc[df["Average Ranking"].idxmin()]
+best_team = df.loc[df["Statistical Strength"].idxmin()]
 
 st.subheader("Highlighted Team")
 st.markdown(
@@ -28,7 +28,7 @@ st.markdown(
         <h2 style="margin:0;">{best_team['Teams']}</h2>
         <p style="margin:5px 0;">Wins: {best_team['Wins']} | Losses: {best_team['Losses']}</p>
         <p style="margin:5px 0; font-weight:bold; color:#2E86C1;">
-            Avg Ranking: {best_team['Average Ranking']}
+            Avg Ranking: {best_team['Strength of Statistical Ranking']}
         </p>
         <p style="margin:5px 0; font-weight:bold; color:#117A65;">
             Avg Scoring Margin: {best_team['SM']}
@@ -86,6 +86,6 @@ with cols[2]:
 
 
 
-# Change average ranking to Statistical Strength
-# Standardize that to be white and words black for the team because night mode messes it up
-# Properly connect the links
+# Change average ranking to Statistical Strength (there is now a column "Statistical Strength"
+# Standardize the team being pulled from statistical strength to be white background and words black for the team because night mode messes it up
+# Properly connect the links to the different pages
