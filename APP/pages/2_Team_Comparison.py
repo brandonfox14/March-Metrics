@@ -170,35 +170,39 @@ def collect_missing_ranks(team_data):
     return sorted(set(missing))
 
 # -----------------------
-# Team selectors (default to top STAT_STREN teams if available)
+# Team selectors (default to top Games (Dropping D2 matches) in SEC and Big Ten)
 # -----------------------
 teams_sorted = sorted(df["Teams"].dropna().unique().tolist())
 
-# Determine defaults from STAT_STREN (lower is better in your dataset); fallback to first two alphabetical
+# Default fallbacks (alphabetical first two)
 default_a = teams_sorted[0]
 default_b = teams_sorted[1] if len(teams_sorted) > 1 else teams_sorted[0]
 
-if "STAT_STREN" in df.columns:
-    # choose smallest (best) STAT_STREN values
-    top_stats = df[["Teams","STAT_STREN"]].dropna(subset=["STAT_STREN"])
+if "Games (Dropping D2 matches)" in df.columns and "Conference" in df.columns:
     try:
-        top_two = top_stats.nsmallest(2, "STAT_STREN")["Teams"].tolist()
-        if len(top_two) >= 1 and top_two[0] in teams_sorted:
-            default_a = top_two[0]
-        if len(top_two) >= 2 and top_two[1] in teams_sorted:
-            default_b = top_two[1]
-    except Exception:
-        # fall back silently
-        pass
+        # SEC top team
+        sec_teams = df[df["Conference"].str.upper() == "SEC"].dropna(subset=["Games (Dropping D2 matches)"])
+        bigten_teams = df[df["Conference"].str.upper() == "BIG TEN"].dropna(subset=["Games (Dropping D2 matches)"])
 
+        if not sec_teams.empty:
+            sec_top = sec_teams.sort_values("Games (Dropping D2 matches)", ascending=False).iloc[0]["Teams"]
+            if sec_top in teams_sorted:
+                default_a = sec_top
+
+        if not bigten_teams.empty:
+            bigten_top = bigten_teams.sort_values("Games (Dropping D2 matches)", ascending=False).iloc[0]["Teams"]
+            if bigten_top in teams_sorted:
+                default_b = bigten_top
+
+    except Exception as e:
+        st.warning(f"Default team selection failed, falling back to alphabetical. Error: {e}")
+
+# Streamlit selectors
 col1, col2 = st.columns(2)
 with col1:
     team_a = st.selectbox("Select Left Team", teams_sorted, index=teams_sorted.index(default_a))
 with col2:
     team_b = st.selectbox("Select Right Team", teams_sorted, index=teams_sorted.index(default_b))
-
-team_a_data = df[df["Teams"] == team_a].iloc[0]
-team_b_data = df[df["Teams"] == team_b].iloc[0]
 
 # -----------------------
 # Missing rank warnings
@@ -347,3 +351,4 @@ fig.update_layout(
 )
 
 st.plotly_chart(fig, use_container_width=True)
+
