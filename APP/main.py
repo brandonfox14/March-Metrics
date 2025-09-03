@@ -28,7 +28,7 @@ st.markdown(
         <h2 style="margin:0;">{best_team['Teams']}</h2>
         <p style="margin:5px 0;">Wins: {best_team['Wins']} | Losses: {best_team['Losses']}</p>
         <p style="margin:5px 0; font-weight:bold; color:#2E86C1;">
-            Avg Ranking: {best_team['Strength of Statistical Ranking']}
+            Avg Ranking: {best_team['STAT_STREN']}
         </p>
         <p style="margin:5px 0; font-weight:bold; color:#117A65;">
             Avg Scoring Margin: {best_team['SM']}
