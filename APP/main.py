@@ -18,7 +18,7 @@ with col2:
     st.image("Assets/FullLogo.png", use_container_width=True)
 
 # --- HIGHLIGHTED TEAM ---
-best_team = df.loc[df["Statistical Strength"].idxmin()]
+best_team = df.loc[df["Statistical StrengthÊ"].idxmin()]
 
 st.subheader("Highlighted Team")
 st.markdown(
