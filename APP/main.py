@@ -49,35 +49,44 @@ st.divider()
 st.subheader("📊 Explore the Data")
 cols = st.columns(3)
 
-# Navigation Card Function
-def nav_card(title, desc, color, page_path):
+with cols[0]:
     st.markdown(
-        f"""
-        <a href="/{page_path}" target="_self" style="text-decoration:none;">
-            <div style="padding:15px; border-radius:12px; background-color:{color}; 
+        """
+        <a href="/Team_Breakdown" target="_self" style="text-decoration:none;">
+            <div style="padding:15px; border-radius:12px; background-color:#E8F8F5; 
                         box-shadow:0px 4px 8px rgba(0,0,0,0.1); text-align:center; color:black;">
-                <h3>{title}</h3>
-                <p>{desc}</p>
+                <h3>Team Breakdown</h3>
+                <p>Dive into detailed team stats and player impact.</p>
             </div>
         </a>
         """,
         unsafe_allow_html=True,
     )
 
-with cols[0]:
-    nav_card("Team Breakdown", "Dive into detailed team stats.", "#E8F8F5")
-
 with cols[1]:
-    nav_card("Team Comparison", "Compare stats across multiple teams side by side.", "#FDEDEC")
+    st.markdown(
+        """
+        <a href="/Conference_Projections" target="_self" style="text-decoration:none;">
+            <div style="padding:15px; border-radius:12px; background-color:#FDEDEC; 
+                        box-shadow:0px 4px 8px rgba(0,0,0,0.1); text-align:center; color:black;">
+                <h3>Conference Projections</h3>
+                <p>See how conferences stack up against each other.</p>
+            </div>
+        </a>
+        """,
+        unsafe_allow_html=True,
+    )
 
 with cols[2]:
-    nav_card("Clutch Performance", "Who delivers when the game is on the line?", "#FEF9E7")
-
-# second row of cards for the other pages
-cols2 = st.columns(2)
-
-with cols2[0]:
-    nav_card("Schedule Predictor", "Explore randomized schedules and projections.", "#EBF5FB")
-
-with cols2[1]:
-    nav_card("Players", "Analyze core player stats and contributions.", "#F9EBEA")
+    st.markdown(
+        """
+        <a href="/Clutch_Performance" target="_self" style="text-decoration:none;">
+            <div style="padding:15px; border-radius:12px; background-color:#FEF9E7; 
+                        box-shadow:0px 4px 8px rgba(0,0,0,0.1); text-align:center; color:black;">
+                <h3>Clutch Performance</h3>
+                <p>Who delivers when the game is on the line?</p>
+            </div>
+        </a>
+        """,
+        unsafe_allow_html=True,
+    )
