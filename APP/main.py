@@ -65,19 +65,19 @@ def nav_card(title, desc, color, page_path):
     )
 
 with cols[0]:
-    nav_card("Team Breakdown", "Dive into detailed team stats and player impact.", "#E8F8F5", "1_Team_Breakdown")
+    nav_card("Team Breakdown", "Dive into detailed team stats.", "#E8F8F5")
 
 with cols[1]:
-    nav_card("Team Comparison", "Compare stats across multiple teams side by side.", "#FDEDEC", "2_Team_Comparison")
+    nav_card("Team Comparison", "Compare stats across multiple teams side by side.", "#FDEDEC")
 
 with cols[2]:
-    nav_card("Clutch Performance", "Who delivers when the game is on the line?", "#FEF9E7", "3_Clutch")
+    nav_card("Clutch Performance", "Who delivers when the game is on the line?", "#FEF9E7")
 
 # second row of cards for the other pages
 cols2 = st.columns(2)
 
 with cols2[0]:
-    nav_card("Schedule Predictor", "Explore randomized schedules and projections.", "#EBF5FB", "4_Schedule_Predictor")
+    nav_card("Schedule Predictor", "Explore randomized schedules and projections.", "#EBF5FB")
 
 with cols2[1]:
-    nav_card("Players", "Analyze individual player stats and contributions.", "#F9EBEA", "5_Players")
+    nav_card("Players", "Analyze core player stats and contributions.", "#F9EBEA")
