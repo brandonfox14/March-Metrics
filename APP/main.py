@@ -19,7 +19,7 @@ with col2:
 
 # --- HIGHLIGHTED TEAM ---
 # Pick team with *lowest* Statistical Strength value
-best_team = df.loc[df["Statistical Strength "].idxmin()]
+best_team = df.loc[df["Statistical StrengthÊ"].idxmin()]
 
 st.subheader("Highlighted Team")
 st.markdown(
