@@ -1,17 +1,14 @@
+import re
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-import numpy as np
 
 # -----------------------
 # Load data
 # -----------------------
 @st.cache_data
 def load_data():
-    df = pd.read_csv("Data/All_stats.csv", encoding="latin1")
-    # clean headers just in case
-    df.columns = df.columns.str.strip()
-    return df
+    return pd.read_csv("Data/All_stats.csv", encoding="latin1")
 
 df = load_data()
 
@@ -26,17 +23,16 @@ def format_value(key_or_label, val):
         v = float(val)
     except Exception:
         return str(val)
-    # treat as percent if key/label indicates percent
+    # treat as percent if key or label indicates percent
     if ("PERC" in str(key_or_label).upper()) or ("%" in str(key_or_label)):
-        # if stored as fraction (<=1) show 0-100%, else assume already 0-100
         return f"{v:.1%}" if v <= 1 else f"{v:.1f}%"
-    # integer-friendly formatting
+    # format integers without .0 if safe
     if float(v).is_integer():
         return str(int(v))
     return f"{v:.1f}"
 
 def format_rank(val):
-    """Right-column rank formatting."""
+    """Format rank display for right column."""
     if val is None:
         return "No rank mapping defined"
     if pd.isna(val) or val == "N/A":
@@ -46,8 +42,57 @@ def format_rank(val):
     except Exception:
         return val
 
+# -----------------------
+# Explicit rank mapping (source-of-truth)
+# -----------------------
+rank_overrides = {
+    # offense
+    "Points": "Points_RANK",
+    "FG_PERC": "FG_PERC_Rank",
+    "FGM/G": "FGM/G_Rank",
+    "FG3_PERC": "FG3_PERC_Rank",
+    "FG3M/G": "FG3M/G_Rank",
+    "FT_PERC": "FT_PERC_Rank",
+    "FTM/G": "FTM/G_Rank",
+
+    # defense
+    "OPP_PPG": "OPP_PPG_RANK",
+    "OPP_FG_PERC": "OPP_FG_PERC_Rank",
+    "OPP_FGM/G": "OPP_FGM/G_Rank",
+    "OPP_FG3_PERC": "OPP_FG3_PERC_Rank",
+    "OPP_FG3M/G": "OPP_FG3M/G_Rank",
+    "OPP_% of Points from 3": "OPP_% of Points from 3 rank",
+    "OPP_% of shots taken from 3": "OPP_% of shots taken from 3 Rank",
+    "OPP_OReb": "OPP_OReb_RANK",
+
+    # extra stats
+    "OReb": "OReb Rank",
+    "OReb chances": "OReb chances Rank",
+    "DReb": "DReb Rank",
+    "Rebounds": "Rebounds Rank",
+    "Rebound Rate": "Rebound Rate Rank",
+    "AST": "AST Rank",
+    "AST/FGM": "AST/FGM Rank",
+    "TO": "TO Rank",
+    "STL": "STL Rank",
+    "PF": "PF_Rank",
+    "Foul Differential": "Foul Differential Rank",
+
+    # scoring stats
+    "Extra Scoring Chances": "Extra Scoring Chances Rank",
+    "PTS_OFF_TURN": "PTS_OFF_TURN_RANK",
+    "FST_BREAK": "FST_BREAK_RANK",
+    "PTS_PAINT": "PTS_PAINT_RANK",
+    "% of Points from 3": "% of Points from 3_Rank",
+    "% of shots taken from 3": "% of shots taken from 3_Rank",
+}
+
+def get_rank_col(key: str):
+    """Return explicit mapping. If missing, return None (no fallback)."""
+    return rank_overrides.get(key)
+
 def robust_normalize(df_section: pd.DataFrame) -> pd.DataFrame:
-    """Normalize each column to [0,1] with robust handling of constant or empty columns."""
+    """Normalize each column to [0,1] with robust handling."""
     out = pd.DataFrame(index=df_section.index, columns=df_section.columns, dtype=float)
     for c in df_section.columns:
         col = pd.to_numeric(df_section[c], errors='coerce')
@@ -62,202 +107,167 @@ def robust_normalize(df_section: pd.DataFrame) -> pd.DataFrame:
             out[c] = (col - mn) / (mx - mn)
     return out
 
-def find_existing_column(df: pd.DataFrame, candidates: list[str]) -> str | None:
-    """Return the first existing column from candidates (exact match), else None."""
-    for c in candidates:
-        if c in df.columns:
-            return c
-    return None
+# -----------------------
+# Default team selection
+# -----------------------
+def _norm_name(s):
+    return str(s).strip().lower() if s else ""
 
-# -----------------------
-# Default team selection: most Wins (fallbacks to first)
-# -----------------------
 teams_sorted = sorted(df["Teams"].dropna().unique().tolist())
 default_index = 0
 if "Wins" in df.columns:
     wins = pd.to_numeric(df["Wins"], errors="coerce")
     if wins.notna().any():
         try:
-            default_team_raw = df.at[wins.idxmax(), "Teams"]
-            if default_team_raw in teams_sorted:
-                default_index = teams_sorted.index(default_team_raw)
+            idxmax = wins.idxmax()
+            default_team_raw = df.at[idxmax, "Teams"]
+            match_idx = next((i for i, t in enumerate(teams_sorted) if _norm_name(t) == _norm_name(default_team_raw)), None)
+            if match_idx is not None:
+                default_index = match_idx
         except Exception:
-            pass
+            default_index = 0
 
+# -----------------------
+# TEAM DROPDOWN
+# -----------------------
 selected_team = st.selectbox("Select a Team", teams_sorted, index=default_index)
-team_row = df[df["Teams"] == selected_team].iloc[0]
-team_conf = team_row.get("Conference", None)
-
-# -----------------------
-# Top note (per your request)
-# -----------------------
-st.info("ℹ️ **Right column shows the team’s ranking for that stat** (1 = best). "
-        "If a rank isn’t available in the dataset, you’ll see a note instead.")
-
-# -----------------------
-# Section definitions with explicit, adjustable mappings
-# (label, stat column candidates, rank column candidates)
-# -----------------------
-offense_defs = [
-    {"label": "Points Per Game", "stat": ["Points"], "rank": ["Points_RANK", "Points_Rank"]},
-    {"label": "Field Goal Percentage", "stat": ["FG_PERC"], "rank": ["FG_PERC_Rank", "FG_PERC_RANK"]},
-    {"label": "Field Goals Made per Game", "stat": ["FGM/G"], "rank": ["FGM/G_Rank", "FGM/G_RANK"]},
-    {"label": "3 Point Field Goal Percentage", "stat": ["FG3_PERC"], "rank": ["FG3_PERC_Rank", "FG3_PERC_RANK"]},
-    {"label": "3 Point Field Goals Made per Game", "stat": ["FG3M/G"], "rank": ["FG3M/G_Rank", "FG3M/G_RANK"]},
-    {"label": "Free Throw Percentage", "stat": ["FT_PERC"], "rank": ["FT_PERC_Rank", "FT_PERC_RANK"]},
-    {"label": "Free Throws Made per Game", "stat": ["FTM/G"], "rank": ["FTM/G_RANK", "FTM/G_Rank"]},
-    {"label": "Percent of Points from 3", "stat": ["% of Points from 3"],
-     "rank": ["% of Points from 3_RANK", "% of Points from 3_Rank"]},
-    {"label": "Percent of Shots Taken from 3", "stat": ["% of shots taken from 3"],
-     "rank": ["% of shots taken from 3_RANK", "% of shots taken from 3_Rank"]},
-]
-
-defense_defs = [
-    {"label": "Opponent Points Per Game", "stat": ["OPP_PPG"], "rank": ["OPP_PPG_RANK", "OPP_PPG_Rank"]},
-    {"label": "Opponent Field Goal Percentage", "stat": ["OPP_FG_PERC"], "rank": ["OPP_FG_PERC_Rank", "OPP_FG_PERC_RANK"]},
-    {"label": "Opponent FGM per Game", "stat": ["OPP_FGM/G"], "rank": ["OPP_FGM/G_Rank", "OPP_FGM/G_RANK"]},
-    {"label": "Opponent 3PT Percentage", "stat": ["OPP_FG3_PERC"], "rank": ["OPP_FG3_PERC_Rank", "OPP_FG3_PERC_RANK"]},
-    {"label": "Opponent 3PTM per Game", "stat": ["OPP_FG3M/G"], "rank": ["OPP_FG3M/G_Rank", "OPP_FG3M/G_RANK"]},
-    {"label": "Opponent % of Points from 3", "stat": ["OPP_% of Points from 3"],
-     "rank": ["OPP_% of Points from 3_RANK", "OPP_% of Points from 3 rank", "OPP_% of Points from 3_Rank"]},
-    {"label": "Opponent % of Shots Taken from 3", "stat": ["OPP_% of shots taken from 3"],
-     "rank": ["OPP_% of shots taken from 3_RANK", "OPP_% of shots taken from 3 Rank", "OPP_% of shots taken from 3_Rank"]},
-    {"label": "Opponent Offensive Rebounds", "stat": ["OPP_OReb"], "rank": ["OPP_OReb_RANK", "OPP_OReb_Rank"]},
-]
-
-other_defs = [
-    {"label": "Offensive Rebounds", "stat": ["OReb"], "rank": ["OReb Rank", "OReb_RANK"]},
-    {"label": "Offensive Rebound Chances", "stat": ["OReb chances", "OReb_chances"],
-     "rank": ["OReb chances Rank", "OReb_chances Rank", "OReb chances_Rank"]},
-    {"label": "Defensive Rebounds", "stat": ["DReb"], "rank": ["DReb Rank", "DReb_RANK"]},
-    {"label": "Total Rebounds", "stat": ["Rebounds"], "rank": ["Rebounds Rank", "Rebounds_RANK"]},
-    {"label": "Rebound Rate", "stat": ["Rebound Rate"], "rank": ["Rebound Rate Rank", "Rebound Rate_Rank"]},
-    {"label": "Assists", "stat": ["AST"], "rank": ["AST Rank", "AST_RANK"]},
-    {"label": "Assists per Field Goal Made", "stat": ["AST/FGM"], "rank": ["AST/FGM Rank", "AST/FGM_Rank"]},
-    {"label": "Turnovers", "stat": ["TO"], "rank": ["TO Rank", "TO_RANK"]},
-    {"label": "Steals", "stat": ["STL"], "rank": ["STL Rank", "STL_RANK"]},
-]
-
-extras_defs = [
-    {"label": "Extra Scoring Chances", "stat": ["Extra Scoring Chances"],
-     "rank": ["Extra Scoring Chances Rank", "Extra Scoring Chances_Rank"]},
-    {"label": "Points Off Turnovers", "stat": ["PTS_OFF_TURN"], "rank": ["PTS_OFF_TURN_RANK", "PTS_OFF_TURN_Rank"]},
-    {"label": "Fast Break Points", "stat": ["FST_BREAK"], "rank": ["FST_BREAK_RANK", "FST_BREAK_Rank"]},
-    {"label": "Points in Paint", "stat": ["PTS_PAINT"], "rank": ["PTS_PAINT_RANK", "PTS_PAINT_Rank"]},
-    {"label": "Personal Fouls", "stat": ["PF"], "rank": ["PF_Rank", "PF_RANK"]},
-    {"label": "Foul Differential", "stat": ["Foul Differential"], "rank": ["Foul Differential Rank", "Foul Differential_Rank"]},
-]
+team_data = df[df["Teams"] == selected_team].iloc[0]
+team_conf = team_data.get("Conference", None)
 
 # -----------------------
 # Section builder
 # -----------------------
-def build_section_chart(section_defs: list[dict], section_title: str):
+def build_section_chart(section_cols: dict, section_title: str):
+    """Builds table + chart for a given stat section."""
     st.header(f"{selected_team} {section_title}")
 
-    # Determine which columns will actually be used based on availability
-    used = []  # list of dicts: label, stat_col_used, rank_col_used
-    missing_stats = []
-    for item in section_defs:
-        stat_col = find_existing_column(df, item["stat"])
-        rank_col = find_existing_column(df, item["rank"])
-        used.append({
-            "label": item["label"],
-            "stat_col": stat_col,
-            "rank_col": rank_col
-        })
-        if stat_col is None:
-            missing_stats.append(item["label"])
-
-    if missing_stats:
-        st.warning(f"Missing stat columns for: {missing_stats}. These will be skipped in charts.")
-
-    # Display rows (Label | Value | Rank)
-    for u in used:
-        col1, col2, col3 = st.columns([3, 2, 3])
-        with col1:
-            st.markdown(f"**{u['label']}**")
-        with col2:
-            if u["stat_col"] is None:
-                st.write("Missing")
-            else:
-                st.write(format_value(u["stat_col"], team_row.get(u["stat_col"], float("nan"))))
-        with col3:
-            if u["rank_col"] is None:
-                st.write("No rank mapping defined")
-            else:
-                st.write(format_rank(team_row.get(u["rank_col"], pd.NA)))
-
-    # Build normalized comparison (only for found stat columns)
-    stat_cols_used = [u["stat_col"] for u in used if u["stat_col"] is not None]
-    labels_used = [u["label"] for u in used if u["stat_col"] is not None]
-
-    if len(stat_cols_used) == 0:
-        st.info("No available columns for chart in this section.")
+    # Missing check
+    missing = [k for k in section_cols.keys() if k not in df.columns]
+    if missing:
+        st.error(f"Missing columns for '{section_title}': {missing}")
         return
 
-    section_df = df[stat_cols_used].apply(pd.to_numeric, errors="coerce")
+    # Display table
+    for key, label in section_cols.items():
+        col1, col2, col3 = st.columns([3, 2, 3])
+        with col1:
+            st.markdown(f"**{label}**")
+        with col2:
+            st.write(format_value(key, team_data.get(key, float("nan"))))
+        with col3:
+            rank_col = get_rank_col(key)
+            if rank_col is None:
+                st.write("No rank mapping defined")
+            else:
+                st.write(format_rank(team_data.get(rank_col, pd.NA)))
+
+    # Normalization for charts
+    stat_keys = list(section_cols.keys())
+    section_df = df[stat_keys].apply(pd.to_numeric, errors="coerce")
     normalized = robust_normalize(section_df)
 
-    # team line
     team_norm_row = normalized.loc[df["Teams"] == selected_team]
-    team_norm = team_norm_row.iloc[0].tolist() if team_norm_row.shape[0] > 0 else [0.5] * len(stat_cols_used)
+    team_norm = team_norm_row.iloc[0].tolist() if team_norm_row.shape[0] > 0 else [0.5] * len(stat_keys)
 
-    # conference line
     conf_norm = None
-    if team_conf and "Conference" in df.columns:
+    if team_conf:
         conf_rows = normalized[df["Conference"] == team_conf]
         if conf_rows.shape[0] > 0:
             conf_norm = conf_rows.mean(skipna=True).tolist()
 
-    # league mean line
     league_norm = normalized.mean(skipna=True).tolist()
 
-    # hover texts (pull raw values + ranks + aggregates)
+    # Hover texts
     hover_texts = []
-    for u in used:
-        if u["stat_col"] is None:
-            continue
-        val = team_row.get(u["stat_col"], float("nan"))
-        rank_val = format_rank(team_row.get(u["rank_col"], pd.NA)) if u["rank_col"] else "No rank mapping defined"
-        col_min = section_df[u["stat_col"]].min(skipna=True)
-        col_max = section_df[u["stat_col"]].max(skipna=True)
-        conf_avg = df[df["Conference"] == team_conf][u["stat_col"]].mean() if team_conf and "Conference" in df.columns else float("nan")
-        league_avg = section_df[u["stat_col"]].mean()
+    for key, label in section_cols.items():
+        val = team_data.get(key, float("nan"))
+        rank_col = get_rank_col(key)
+        rank_val = format_rank(team_data.get(rank_col, pd.NA)) if rank_col else "No rank mapping defined"
+        col_min = section_df[key].min(skipna=True)
+        col_max = section_df[key].max(skipna=True)
+        conf_avg = df[df["Conference"] == team_conf][key].mean() if team_conf else float("nan")
+        league_avg = section_df[key].mean()
         hover_texts.append(
-            f"<b>{u['label']}</b><br>"
-            f"{selected_team}: {format_value(u['stat_col'], val)} (Rank: {rank_val})<br>"
-            f"Min: {format_value(u['stat_col'], col_min)} — Max: {format_value(u['stat_col'], col_max)}<br>"
-            f"{(team_conf + ' Avg') if team_conf else 'Conf Avg'}: {format_value(u['stat_col'], conf_avg)}<br>"
-            f"League Avg: {format_value(u['stat_col'], league_avg)}"
+            f"<b>{label}</b><br>"
+            f"{selected_team}: {format_value(key, val)} (Rank: {rank_val})<br>"
+            f"Min: {format_value(key, col_min)} — Max: {format_value(key, col_max)}<br>"
+            f"{team_conf + ' Avg' if team_conf else 'Conf Avg'}: {format_value(key, conf_avg)}<br>"
+            f"League Avg: {format_value(key, league_avg)}"
         )
 
+    # Chart
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=labels_used, y=team_norm, mode="lines+markers",
+    fig.add_trace(go.Scatter(x=list(section_cols.values()), y=team_norm, mode="lines+markers",
                              name=selected_team, hoverinfo="text", hovertext=hover_texts))
     if conf_norm is not None:
-        fig.add_trace(go.Scatter(x=labels_used, y=conf_norm, mode="lines+markers",
+        fig.add_trace(go.Scatter(x=list(section_cols.values()), y=conf_norm, mode="lines+markers",
                                  name=f"{team_conf} Avg", line=dict(dash="dash")))
-    fig.add_trace(go.Scatter(x=labels_used, y=league_norm, mode="lines+markers",
+    fig.add_trace(go.Scatter(x=list(section_cols.values()), y=league_norm, mode="lines+markers",
                              name="League Avg", line=dict(dash="dot")))
 
-    fig.update_layout(
-        title=f"{section_title} Comparison (Normalized)",
-        yaxis=dict(showticklabels=False, showgrid=False, zeroline=False, range=[0, 1]),
-        xaxis=dict(tickangle=45),
-        plot_bgcolor="white",
-        margin=dict(t=60, b=120)
-    )
+    fig.update_layout(title=f"{section_title} Comparison (Normalized)",
+                      yaxis=dict(showticklabels=False, showgrid=False, zeroline=False, range=[0, 1]),
+                      xaxis=dict(tickangle=45),
+                      plot_bgcolor="white",
+                      margin=dict(t=60, b=120))
     st.plotly_chart(fig, use_container_width=True)
 
-    # Mapping summary (for your adjustments)
-    with st.expander(f"Show mapping used for {section_title}"):
-        map_df = pd.DataFrame(used)
-        st.dataframe(map_df, use_container_width=True)
+# -------------------------------
+# Define sections
+# -------------------------------
+offense_cols = {
+    "Points": "Points Per Game",
+    "FG_PERC": "Field Goal Percentage",
+    "FGM/G": "Field Goals Made per Game",
+    "FG3_PERC": "3 Point Field Goal Percentage",
+    "FG3M/G": "3 Point Field Goals Made per Game",
+    "FT_PERC": "Free Throw Percentage",
+    "FTM/G": "Free Throws Made per Game"
+}
 
-# -----------------------
-# Build sections
-# -----------------------
-build_section_chart(offense_defs, "Offensive Statistics")
-build_section_chart(defense_defs, "Defensive Statistics")
-build_section_chart(other_defs, "Rebounds / AST / TO / STL")
-build_section_chart(extras_defs, "Extra Statistics")
+defense_cols = {
+    "OPP_PPG": "Opponent Points Per Game",
+    "OPP_FG_PERC": "Opponent Field Goal Percentage",
+    "OPP_FGM/G": "Opponent FGM per Game",
+    "OPP_FG3_PERC": "Opponent 3PT Percentage",
+    "OPP_FG3M/G": "Opponent 3PTM per Game",
+    "OPP_% of Points from 3": "Opponent % of Points from 3",
+    "OPP_% of shots taken from 3": "Opponent % of Shots Taken from 3",
+    "OPP_OReb": "Opponent Offensive Rebounds"
+}
+
+extra_cols = {
+    "OReb": "Offensive Rebounds",
+    "OReb chances": "Offensive Rebound Rate",
+    "DReb": "Defensive Rebounds",
+    "Rebounds": "Total Rebounds",
+    "Rebound Rate": "Rebound Rate",
+    "AST": "Assists",
+    "AST/FGM": "Assists per Field Goal Made",
+    "TO": "Turnovers",
+    "STL": "Steals",
+    "PF": "Personal Fouls",
+    "Foul Differential": "Foul Differential"
+}
+
+scoring_cols = {
+    "Extra Scoring Chances": "Extra Scoring Chances",
+    "PTS_OFF_TURN": "Points Off Turnovers",
+    "FST_BREAK": "Fast Break Points",
+    "PTS_PAINT": "Points in Paint",
+    "% of Points from 3": "Percent of Points from 3",
+    "% of shots taken from 3": "Percent of Shots Taken from 3"
+}
+
+# -------------------------------
+# Top note
+# -------------------------------
+st.info("ℹ️ Note: The **right column** in each table shows the team's **ranking** for that stat compared to all other teams.")
+
+# -------------------------------
+# Build charts
+# -------------------------------
+build_section_chart(offense_cols, "Offensive Statistics")
+build_section_chart(defense_cols, "Defensive Statistics")
+build_section_chart(extra_cols, "Extra Statistical Values")
+build_section_chart(scoring_cols, "Scoring Statistics")
