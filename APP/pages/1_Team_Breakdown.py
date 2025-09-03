@@ -162,6 +162,7 @@ def build_section_chart(section_cols: dict, section_title: str):
         return
 
     # display stat rows
+    st.markdown("**Statistic | Value | Ranking**")
     for key, label in section_cols.items():
         col1, col2, col3 = st.columns([3, 2, 3])
         with col1:
@@ -290,3 +291,4 @@ build_section_chart(extras_cols, "Extra Statistics")
 
 # I need to adjust some of the groupings, add steal to turnover ratio, 
 # and add headers to the offensive columns to explain that rankings is the far right column
+
