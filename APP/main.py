@@ -41,7 +41,7 @@ st.markdown(
 )
 
 # Confidentiality Note
-st.info("⚠These are randomly created games and matchups to highlight the predicted qualities that are produced. Most of the full methodology is held back as a competitive advantage, but this example ties the workflow together while showing pieces of the coding approach.")
+st.info("This is not the full dataset. This example app is built for portfolio purposes only to maintain business confidentiality.")
 
 st.divider()
 
