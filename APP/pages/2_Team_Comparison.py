@@ -10,7 +10,8 @@ import plotly.graph_objects as go
 @st.cache_data
 def load_data():
     df = pd.read_csv("Data/All_stats.csv", encoding="latin1")
-    df.columns = df.columns.str.strip()  # clean headers
+    # defensive cleanup of header names
+    df.columns = df.columns.str.strip()
     return df
 
 df = load_data()
@@ -120,11 +121,10 @@ def color_by_rank(rank):
         return "rgba(200,200,200,0.6)"
     # softer palette so numbers readable
     if r > 200:
-        return f"rgba(255,140,120,0.8)"  # light red
+        return "rgba(255,140,120,0.8)"  # light red
     elif 151 <= r <= 200:
-        return f"rgba(190,190,190,0.8)"  # grey
+        return "rgba(190,190,190,0.8)"  # grey
     else:
-        # greens scale
         green_val = int(70 + (150 - r) * 1.2)
         green_val = max(70, min(255, green_val))
         return f"rgba(60,{green_val},60,0.85)"
@@ -145,14 +145,51 @@ def normalize_stat(val, stat_col):
         return 0.5
 
 # -----------------------
-# Team selectors
+# Missing rank collector (defined before use)
+# -----------------------
+def collect_missing_ranks(team_data):
+    """
+    Returns list of stat names where:
+      - a rank mapping exists in rank_overrides, and
+      - that mapped rank column is either missing from df OR is NaN for this team
+    (We only warn where a mapping exists; unmapped stats are handled in UI.)
+    """
+    missing = []
+    for group in stat_groups.values():
+        for stat in group:
+            rc = get_rank_col(stat)
+            if rc:
+                # if rank mapping exists, check column presence and value
+                if rc not in df.columns:
+                    missing.append(stat)
+                else:
+                    val = team_data.get(rc, np.nan)
+                    if pd.isna(val):
+                        missing.append(stat)
+            # if rc is None we do not add to missing — UI will show "No rank mapping defined"
+    return sorted(set(missing))
+
+# -----------------------
+# Team selectors (default to top STAT_STREN teams if available)
 # -----------------------
 teams_sorted = sorted(df["Teams"].dropna().unique().tolist())
 
-# Pick top 2 teams by STAT_STREN for defaults
-top_two = df.nsmallest(2, "STAT_STREN")["Teams"].tolist()
-default_a = top_two[0] if len(top_two) > 0 else teams_sorted[0]
-default_b = top_two[1] if len(top_two) > 1 else teams_sorted[1]
+# Determine defaults from STAT_STREN (lower is better in your dataset); fallback to first two alphabetical
+default_a = teams_sorted[0]
+default_b = teams_sorted[1] if len(teams_sorted) > 1 else teams_sorted[0]
+
+if "STAT_STREN" in df.columns:
+    # choose smallest (best) STAT_STREN values
+    top_stats = df[["Teams","STAT_STREN"]].dropna(subset=["STAT_STREN"])
+    try:
+        top_two = top_stats.nsmallest(2, "STAT_STREN")["Teams"].tolist()
+        if len(top_two) >= 1 and top_two[0] in teams_sorted:
+            default_a = top_two[0]
+        if len(top_two) >= 2 and top_two[1] in teams_sorted:
+            default_b = top_two[1]
+    except Exception:
+        # fall back silently
+        pass
 
 col1, col2 = st.columns(2)
 with col1:
@@ -160,22 +197,12 @@ with col1:
 with col2:
     team_b = st.selectbox("Select Right Team", teams_sorted, index=teams_sorted.index(default_b))
 
+team_a_data = df[df["Teams"] == team_a].iloc[0]
+team_b_data = df[df["Teams"] == team_b].iloc[0]
 
 # -----------------------
 # Missing rank warnings
 # -----------------------
-def collect_missing_ranks(team_data):
-    missing = []
-    for group in stat_groups.values():
-        for stat in group:
-            rank_col = get_rank_col(stat)
-            if rank_col:
-                if rank_col not in df.columns or pd.isna(team_data.get(rank_col, np.nan)):
-                    missing.append(stat)
-            else:
-                missing.append(stat)
-    return sorted(set(missing))
-
 missing_ranks_a = collect_missing_ranks(team_a_data)
 missing_ranks_b = collect_missing_ranks(team_b_data)
 if missing_ranks_a:
@@ -235,35 +262,31 @@ for group_name, stats in stat_groups.items():
 # -----------------------
 st.subheader("Team Radar: Average Rankings")
 
-# helper to compute average rank for a list of stat keys
 def avg_rank_for_keys(team_data, keys):
     ranks = []
     for k in keys:
         rc = get_rank_col(k)
         if rc and rc in df.columns:
             v = team_data.get(rc, np.nan)
-            try:
-                if not pd.isna(v):
+            if not pd.isna(v):
+                try:
                     ranks.append(float(v))
-            except Exception:
-                pass
+                except Exception:
+                    pass
     if not ranks:
         return np.nan
     return float(np.mean(ranks))
 
-# categories & keys (use the same groups)
-radar_categories = ["Overall", "Offense", "Defense", "Extra Statistical Values", "Scoring Statistics"]
-
-# Overall: prefer explicit "Average Ranking" column, fallback to mean of all available ranks
 def overall_avg_rank(team_data):
+    # prefer explicit "Average Ranking" column if available
     if "Average Ranking" in df.columns:
         v = team_data.get("Average Ranking", np.nan)
-        try:
-            if not pd.isna(v):
+        if not pd.isna(v):
+            try:
                 return float(v)
-        except Exception:
-            pass
-    # fallback: mean of all mapped ranks present
+            except Exception:
+                pass
+    # fallback: mean of all available mapped ranks
     all_keys = [s for group in stat_groups.values() for s in group]
     ranks = []
     for k in all_keys:
@@ -277,7 +300,8 @@ def overall_avg_rank(team_data):
                     pass
     return float(np.mean(ranks)) if ranks else np.nan
 
-# compute values
+radar_categories = ["Overall", "Offense", "Defense", "Extra Statistical Values", "Scoring Statistics"]
+
 overall_a = overall_avg_rank(team_a_data)
 overall_b = overall_avg_rank(team_b_data)
 
@@ -305,8 +329,11 @@ fig.add_trace(go.Scatterpolar(
     name=team_b
 ))
 
-# invert radial axis so 1 is outer, 365 inner (safe default range uses 365)
-max_rank = 365
+# invert radial axis so 1 is outer, fallback max rank = max observed rank or 365
+all_rank_cols = [c for c in rank_overrides.values() if c in df.columns]
+max_rank_observed = int(np.nanmax(df[all_rank_cols].apply(pd.to_numeric, errors="coerce").max(skipna=True))) if all_rank_cols else 365
+max_rank = max(365, max_rank_observed)
+
 fig.update_layout(
     polar=dict(
         radialaxis=dict(
@@ -320,4 +347,3 @@ fig.update_layout(
 )
 
 st.plotly_chart(fig, use_container_width=True)
-
